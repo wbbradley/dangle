@@ -67,10 +67,16 @@ find-solo-refs() {
     }' 
 }
 
+if [[ $1 = "-c" ]]; then
+  all-words
+  exit $?
+fi
+# git grep -E -n "((def|class)\s+\b{}\b)|(\b{}\b\s*=\b)" \
+#
 solo-ref-stream \
   | find-solo-refs \
   | xargs \
       -I {} \
-      git grep -E -n "((def|class)\s+\b{}\b)|(\b{}\b\s*=\b)" \
+      git grep -E -n "({} = )|((def|class) {}\b)" \
   | sort \
   | grep -v -e test_ -e '__\b'
