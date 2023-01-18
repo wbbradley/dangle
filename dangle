@@ -70,8 +70,7 @@ find-solo-refs() {
 solo-ref-stream \
   | find-solo-refs \
   | xargs \
-      -n 1 \
       -I {} \
-      git grep -E -n "(def|class)\s+\b{}\b" \
+      git grep -E -n "((def|class)\s+\b{}\b)|(\b{}\b\s*=\b)" \
   | sort \
   | grep -v -e test_ -e '__\b'
