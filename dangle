@@ -1,0 +1,77 @@
+#!/bin/bash
+die() {
+  echo "$0: $*" >&2
+  exit 1
+}
+
+install_dir="$(dirname "$0")"
+deps=(
+  words
+  defs
+)
+
+for dep in "${deps[@]}"; do
+  _src="$install_dir/${dep}.c"
+  _bin="$install_dir/bin/$dep"
+  if ! [[ -x "$_bin" ]] || [[ "$_src" -nt "$_bin" ]]; then
+    echo "$0: compiling $_src -> $_bin..." >&2
+    mkdir -p "$(dirname "$_bin")"
+    cc -O3 "$_src" -o "$_bin" || die "failed to build $dep binary"
+  fi
+done
+
+all-defs() {
+  for f in $(git ls-files | grep '\.py$' | grep -Ev -e 'test_'); do
+    <"$f" "$install_dir/bin/defs"
+  done
+  return 0
+}
+
+all-words() {
+  for f in $(git ls-files | grep '\.py$' | grep -Ev -e 'test_'); do
+    <"$f" "$install_dir/bin/words"
+  done
+  return 0
+}
+
+solo-ref-stream() {
+  all-defs
+  echo '--done-defs--'
+  all-words
+}
+
+find-solo-refs() {
+  awk '
+    BEGIN {
+      seen_defs = 0;
+    }
+    {
+      if (seen_defs) {
+        if (defs[$1] == 1) {
+          saw[$1]++;
+        }
+      } else {
+        if ($1 == "--done-defs--") {
+          seen_defs = 1;
+        } else {
+          defs[$1] = 1;
+        }
+      }
+    }
+    END {
+      for (k in saw) {
+        if (saw[k] == 1) {
+          printf("%s\n", k);
+        }
+      }
+    }' 
+}
+
+solo-ref-stream \
+  | find-solo-refs \
+  | xargs \
+      -n 1 \
+      -I {} \
+      git grep -E -n "(def|class)\s+\b{}\b" \
+  | sort \
+  | grep -v -e test_ -e '__\b'
