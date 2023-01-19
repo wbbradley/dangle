@@ -63,19 +63,6 @@ int main(int argc, char *argv[]) {
       } while (1);
     }
 
-    if (ch == '"' || ch == '\'') {
-      print_word(word, &len);
-      int orig_quote = ch;
-      int count = 1;
-      while (count < 3 && (ch = getc(stdin)) == orig_quote) {
-        ++count;
-      }
-      ungetc(ch, stdin);
-      if (count == 1 || count == 3) {
-        read_until_quotes(orig_quote, count);
-      }
-    }
-
     if (isalpha(ch) || ch == '_') {
       append_char(ch, word, &len);
     } else if (len != 0 && isalnum(ch)) {
