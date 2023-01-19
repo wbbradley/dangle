@@ -21,11 +21,30 @@ void append_char(int ch, char *word, int *len) {
   }
 }
 
+int read_until_quotes(int quote, int count) {
+  int left = count;
+  int ch;
+  while ((ch = getc(stdin)) != EOF) {
+    if (ch != quote) {
+      left = count;
+      continue;
+    } else if (ch == quote) {
+      left -= 1;
+      if (left == 0) {
+        return getc(stdin);
+      }
+    }
+  }
+  return EOF;
+}
+
 int main(int argc, char *argv[]) {
   char word[MAX_WORD];
   int len = 0;
   while (1) {
     int ch = getc(stdin);
+
+  l_just_chomped:
     if (ch == EOF) {
       print_word(word, &len);
       return EXIT_SUCCESS;
@@ -40,6 +59,25 @@ int main(int argc, char *argv[]) {
         }
         if (ch == '\n') {
           break;
+        }
+      } while (1);
+    }
+
+    if (ch == '"' || ch == '\'') {
+      print_word(word, &len);
+      int orig_quote = ch;
+      int quotes_in_row = 1;
+      do {
+        ch = getc(stdin);
+        if (ch == orig_quote) {
+          ++quotes_in_row;
+          if (quotes_in_row == 3) {
+            ch = read_until_quotes(orig_quote, 3);
+            goto l_just_chomped;
+          }
+        } else if (quotes_in_row == 1) {
+          ch = read_until_quotes(orig_quote, 1);
+          goto l_just_chomped;
         }
       } while (1);
     }
