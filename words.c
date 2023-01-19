@@ -21,7 +21,7 @@ void append_char(int ch, char *word, int *len) {
   }
 }
 
-int read_until_quotes(int quote, int count) {
+void read_until_quotes(int quote, int count) {
   int left = count;
   int ch;
   while ((ch = getc(stdin)) != EOF) {
@@ -31,11 +31,11 @@ int read_until_quotes(int quote, int count) {
     } else if (ch == quote) {
       left -= 1;
       if (left == 0) {
-        return getc(stdin);
+        return;
       }
     }
   }
-  return EOF;
+  ungetc(EOF, stdin);
 }
 
 int main(int argc, char *argv[]) {
@@ -66,20 +66,14 @@ int main(int argc, char *argv[]) {
     if (ch == '"' || ch == '\'') {
       print_word(word, &len);
       int orig_quote = ch;
-      int quotes_in_row = 1;
-      do {
-        ch = getc(stdin);
-        if (ch == orig_quote) {
-          ++quotes_in_row;
-          if (quotes_in_row == 3) {
-            ch = read_until_quotes(orig_quote, 3);
-            goto l_just_chomped;
-          }
-        } else if (quotes_in_row == 1) {
-          ch = read_until_quotes(orig_quote, 1);
-          goto l_just_chomped;
-        }
-      } while (1);
+      int count = 1;
+      while (count < 3 && (ch = getc(stdin)) == orig_quote) {
+        ++count;
+      }
+      ungetc(ch, stdin);
+      if (count == 1 || count == 3) {
+        read_until_quotes(orig_quote, count);
+      }
     }
 
     if (isalpha(ch) || ch == '_') {
