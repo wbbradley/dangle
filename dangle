@@ -78,5 +78,6 @@ solo-ref-stream \
   | xargs \
       -I {} \
       git grep -E -n "({} = )|((def|class) {}\b)" \
+  | grep -Ev '#.*\bnodangle\b' \
   | sort \
   | grep -v -e test_ -e '__\b'
