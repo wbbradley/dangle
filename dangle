@@ -77,7 +77,7 @@ solo-ref-stream \
   | find-solo-refs \
   | xargs \
       -I {} \
-      git grep -E -n "({} = )|((def|class) {}\b)" \
+      git grep -Ewn "({} = )|((def|class) {})" \
   | grep -Ev '#.*\bnodangle\b' \
   | sort \
   | grep -v -e test_ -e '__\b'
