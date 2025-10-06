@@ -17,7 +17,8 @@ struct word {
 void print_word(struct word *prior_word, struct word *word, int *len) {
   if (*len != 0) {
     if (strcmp(prior_word->word, "def") == 0 ||
-        strcmp(prior_word->word, "class") == 0) {
+        strcmp(prior_word->word, "class") == 0 ||
+        strcmp(prior_word->word, "fn") == 0) {
       printf("%s\n", word->word);
     } else if (prior_word->column == 0 && strcmp(word->word, "=") == 0) {
       printf("%s\n", prior_word->word);

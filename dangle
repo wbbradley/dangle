@@ -21,14 +21,14 @@ for dep in "${deps[@]}"; do
 done
 
 all-defs() {
-  for f in $(git ls-files | grep '\.py$' | grep -Ev -e 'test_'); do
+  for f in $(git ls-files | grep -E '\.rs$|\.py$' | grep -Ev -e 'test_'); do
     <"$f" "$install_dir/bin/defs"
   done
   return 0
 }
 
 all-words() {
-  for f in $(git ls-files | grep '\.py$' | grep -Ev -e 'test_'); do
+  for f in $(git ls-files | grep -E '\.rs$|\.py$' | grep -Ev -e 'test_'); do
     <"$f" "$install_dir/bin/words"
   done
   return 0
@@ -77,7 +77,7 @@ solo-ref-stream \
   | find-solo-refs \
   | xargs \
       -I {} \
-      git grep -Ewn "({} = )|((def|class) {})" \
+      git grep -Ewn "({} = )|((fn|def|class) {})" \
   | grep -Ev '#.*\bnodangle\b' \
   | sort \
   | grep -v -e test_ -e '__\b'
