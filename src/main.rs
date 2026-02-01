@@ -1,11 +1,8 @@
-mod analysis;
-mod languages;
-mod symbols;
-
 use std::{collections::HashMap, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use dangle::{analysis, languages, symbols};
 
 #[derive(Parser)]
 #[command(name = "dangle")]
@@ -68,8 +65,8 @@ fn main() -> Result<()> {
                 if args.verbose {
                     for def in &defs {
                         eprintln!(
-                            "Found definition: {} in {}:{} ({})",
-                            def.name, def.file, def.line, def.kind
+                            "Found definition: {} in {}:{}:{} ({})",
+                            def.name, def.file, def.line, def.column, def.kind
                         );
                     }
                 }
@@ -115,7 +112,10 @@ fn main() -> Result<()> {
             "assignment" => "var",
             _ => &def.kind,
         };
-        println!("{}:{}: {} {}", def.file, def.line, kind_abbrev, def.name);
+        println!(
+            "{}:{}:{}: {} {} is not referenced",
+            def.file, def.line, def.column, kind_abbrev, def.name
+        );
     }
 
     Ok(())

@@ -11,6 +11,7 @@ pub struct Definition {
     pub name: String,
     pub file: String,
     pub line: usize,
+    pub column: usize,
     pub kind: String,
     pub has_nodangle: bool,
 }
@@ -57,7 +58,9 @@ pub fn extract_definitions(
                 continue;
             }
 
-            let line = capture.node.start_position().row;
+            let pos = capture.node.start_position();
+            let line = pos.row;
+            let column = pos.column;
             let line_text = lines.get(line).unwrap_or(&"");
 
             let has_nodangle = line_text.contains("nodangle") || line_text.contains("# nodangle");
@@ -71,6 +74,7 @@ pub fn extract_definitions(
                 name,
                 file: file_str.clone(),
                 line: line + 1,
+                column: column + 1,
                 kind: kind.to_string(),
                 has_nodangle,
             });
