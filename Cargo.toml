@@ -1,7 +1,14 @@
 [package]
 name = "dangle"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+license = "MIT"
+keywords = ["lint", "dead-code", "cleanup", "diagnostics"]
+categories = ["development-tools", "text-editors"]
+description = "Dead code detector powered by tree-sitter"
+readme = "README.md"
+homepage = "https://github.com/wbbradley/dangle"
+repository = "https://github.com/wbbradley/dangle"
 
 [dependencies]
 anyhow = "1"
