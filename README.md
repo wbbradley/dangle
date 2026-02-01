@@ -1,0 +1,63 @@
+# dangle
+
+A dead code detector for multi-language projects. Finds symbols that are defined but never
+referenced elsewhere in your codebase.
+
+## Installation
+
+```sh
+cargo install dangle
+```
+
+## Usage
+
+Run `dangle` in a git repository to find dead code candidates:
+
+```sh
+dangle
+```
+
+Output format:
+
+```
+path/to/file.rs:42: fn unused_function
+path/to/file.py:17: class UnusedClass
+```
+
+### Options
+
+- `-v, --verbose` - Show all definitions found
+- `-h, --help` - Print help
+
+## How It Works
+
+Dangle uses [tree-sitter](https://tree-sitter.github.io/) for accurate AST-based parsing. Unlike
+regex-based approaches, it correctly ignores symbols that appear only in strings or comments.
+
+The algorithm:
+
+1. Discovers source files via `git ls-files`
+2. Extracts definitions (functions, classes, structs, etc.) using tree-sitter queries
+3. Extracts all identifier references
+4. Reports definitions that are referenced only once (the definition itself)
+
+## Supported Languages
+
+- Rust
+- Python
+
+More tree-sitter language support is planned for future releases.
+
+## Filters
+
+Dangle automatically excludes:
+
+- `main` functions
+- `test_*` functions
+- `__*` names (Python dunders, etc.)
+- `drop` (Rust)
+- Definitions marked with `nodangle` in a comment on the same line
+
+## License
+
+MIT
