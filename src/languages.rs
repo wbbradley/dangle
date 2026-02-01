@@ -22,6 +22,7 @@ impl LanguageSupport for RustLanguage {
         (const_item name: (identifier) @def)
         (static_item name: (identifier) @def)
         (mod_item name: (identifier) @def)
+        (trait_item name: (type_identifier) @def)
         "#
     }
 
@@ -33,7 +34,7 @@ impl LanguageSupport for RustLanguage {
     }
 
     fn should_ignore(&self, name: &str) -> bool {
-        name == "main" || name == "drop" || name.starts_with("test_") || name.starts_with("__")
+        name == "main" || name.starts_with("test_") || name.starts_with("__")
     }
 }
 

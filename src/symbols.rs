@@ -6,6 +6,66 @@ use tree_sitter::{Node, Parser, Query, QueryCursor};
 
 use crate::languages::LanguageSupport;
 
+/// Check if a node is inside a Rust trait impl block (as opposed to an inherent impl)
+fn is_inside_trait_impl(node: Node) -> bool {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if parent.kind() == "impl_item" {
+            // A trait impl has a child with field name "trait"
+            return parent.child_by_field_name("trait").is_some();
+        }
+        current = parent.parent();
+    }
+    false
+}
+
+/// Check if a node is a public trait (has visibility modifier)
+fn is_public_trait(node: Node) -> bool {
+    if let Some(parent) = node.parent()
+        && parent.kind() == "trait_item"
+    {
+        // Check if the trait has a visibility_modifier child
+        let mut cursor = parent.walk();
+        for child in parent.children(&mut cursor) {
+            if child.kind() == "visibility_modifier" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Check if a function has a #[test] attribute
+fn has_test_attribute(node: Node, source: &[u8]) -> bool {
+    if let Some(func) = node.parent()
+        && func.kind() == "function_item" {
+            // Check for attribute_item children of the function
+            let mut cursor = func.walk();
+            for child in func.children(&mut cursor) {
+                if child.kind() == "attribute_item"
+                    && let Ok(text) = child.utf8_text(source)
+                        && text.contains("test") {
+                            return true;
+                        }
+            }
+            // Also check preceding siblings (attributes may be separate nodes)
+            let mut sibling = func.prev_sibling();
+            while let Some(sib) = sibling {
+                if sib.kind() == "attribute_item" {
+                    if let Ok(text) = sib.utf8_text(source)
+                        && text.contains("test") {
+                            return true;
+                        }
+                } else if sib.kind() != "line_comment" && sib.kind() != "block_comment" {
+                    // Stop if we hit something that's not an attribute or comment
+                    break;
+                }
+                sibling = sib.prev_sibling();
+            }
+        }
+    false
+}
+
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub name: String,
@@ -55,6 +115,21 @@ pub fn extract_definitions(
                 .to_string();
 
             if lang.should_ignore(&name) {
+                continue;
+            }
+
+            // Skip functions inside trait impls (they're called indirectly via the trait)
+            if is_inside_trait_impl(capture.node) {
+                continue;
+            }
+
+            // Skip public traits (they may be implemented by downstream crates)
+            if is_public_trait(capture.node) {
+                continue;
+            }
+
+            // Skip functions with #[test] attribute
+            if has_test_attribute(capture.node, source.as_bytes()) {
                 continue;
             }
 

@@ -20,8 +20,8 @@ dangle
 Output format:
 
 ```
-path/to/file.rs:42: fn unused_function
-path/to/file.py:17: class UnusedClass
+path/to/file.rs:42:5: fn unused_function is not referenced
+path/to/file.py:17:1: class UnusedClass is not referenced
 ```
 
 ### Options
@@ -54,8 +54,10 @@ Dangle automatically excludes:
 
 - `main` functions
 - `test_*` functions
+- `#[test]` functions (Rust)
 - `__*` names (Python dunders, etc.)
-- `drop` (Rust)
+- Functions inside Rust trait impls (e.g., `impl Drop`, `impl Iterator`, etc.)
+- Private traits that are not implemented (public traits are assumed to be API)
 - Definitions marked with `nodangle` in a comment on the same line
 
 ## License

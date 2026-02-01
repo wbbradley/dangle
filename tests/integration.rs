@@ -40,7 +40,7 @@ fn dead_names(source: &str, ext: &str) -> Vec<String> {
 // =============================================================================
 
 #[test]
-fn rust_unreferenced_function_is_dead() {
+fn test_rust_unreferenced_function_is_dead() {
     let source = r#"
 fn unused_function() {}
 "#;
@@ -49,7 +49,7 @@ fn unused_function() {}
 }
 
 #[test]
-fn rust_referenced_function_is_not_dead() {
+fn test_rust_referenced_function_is_not_dead() {
     let source = r#"
 fn used_function() {}
 
@@ -64,7 +64,7 @@ fn caller() {
 }
 
 #[test]
-fn rust_impl_drop_is_not_dead() {
+fn test_rust_impl_drop_is_not_dead() {
     let source = r#"
 struct MyResource {
     handle: i32,
@@ -77,12 +77,98 @@ impl Drop for MyResource {
 }
 "#;
     let dead = dead_names(source, "rs");
-    // drop should be ignored by should_ignore
+    // drop is inside a trait impl, so it should be ignored
     assert!(!dead.contains(&"drop".to_string()));
 }
 
 #[test]
-fn rust_main_is_not_dead() {
+fn test_rust_trait_impl_functions_are_not_dead() {
+    let source = r#"
+trait MyTrait {
+    fn do_something(&self);
+    fn do_another(&self);
+}
+
+struct MyStruct;
+
+impl MyTrait for MyStruct {
+    fn do_something(&self) {
+        println!("something");
+    }
+
+    fn do_another(&self) {
+        println!("another");
+    }
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Functions inside trait impls should be ignored
+    assert!(!dead.contains(&"do_something".to_string()));
+    assert!(!dead.contains(&"do_another".to_string()));
+}
+
+#[test]
+fn test_rust_inherent_impl_functions_are_detected() {
+    let source = r#"
+struct MyStruct;
+
+impl MyStruct {
+    fn unused_method(&self) {
+        println!("unused");
+    }
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Functions in inherent impls (not trait impls) should still be detected
+    assert!(dead.contains(&"unused_method".to_string()));
+}
+
+#[test]
+fn test_rust_private_trait_unreferenced_is_dead() {
+    let source = r#"
+trait UnusedTrait {
+    fn do_something(&self);
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Private traits with no implementations should be flagged
+    assert!(dead.contains(&"UnusedTrait".to_string()));
+}
+
+#[test]
+fn test_rust_public_trait_is_not_dead() {
+    let source = r#"
+pub trait ExportedTrait {
+    fn do_something(&self);
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Public traits should not be flagged (they may be implemented downstream)
+    assert!(!dead.contains(&"ExportedTrait".to_string()));
+}
+
+#[test]
+fn test_rust_private_trait_with_impl_is_not_dead() {
+    let source = r#"
+trait InternalTrait {
+    fn do_something(&self);
+}
+
+struct MyStruct;
+
+impl InternalTrait for MyStruct {
+    fn do_something(&self) {
+        println!("something");
+    }
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Private traits that are implemented should not be flagged
+    assert!(!dead.contains(&"InternalTrait".to_string()));
+}
+
+#[test]
+fn test_rust_main_is_not_dead() {
     let source = r#"
 fn main() {
     println!("hello");
@@ -93,7 +179,7 @@ fn main() {
 }
 
 #[test]
-fn rust_test_functions_are_not_dead() {
+fn test_rust_test_functions_are_not_dead() {
     let source = r#"
 #[test]
 fn test_something() {
@@ -105,7 +191,20 @@ fn test_something() {
 }
 
 #[test]
-fn rust_nodangle_comment_excludes_function() {
+fn test_rust_test_attribute_ignores_function() {
+    let source = r#"
+#[test]
+fn some_test_without_prefix() {
+    assert!(true);
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Functions with #[test] attribute should be ignored even without test_ prefix
+    assert!(!dead.contains(&"some_test_without_prefix".to_string()));
+}
+
+#[test]
+fn test_rust_nodangle_comment_excludes_function() {
     let source = r#"
 fn intentionally_unused() {} // nodangle
 "#;
@@ -114,7 +213,7 @@ fn intentionally_unused() {} // nodangle
 }
 
 #[test]
-fn rust_struct_unreferenced_is_dead() {
+fn test_rust_struct_unreferenced_is_dead() {
     let source = r#"
 struct UnusedStruct {
     field: i32,
@@ -125,7 +224,7 @@ struct UnusedStruct {
 }
 
 #[test]
-fn rust_struct_referenced_is_not_dead() {
+fn test_rust_struct_referenced_is_not_dead() {
     let source = r#"
 struct UsedStruct {
     field: i32,
@@ -140,7 +239,7 @@ fn use_it() -> UsedStruct {
 }
 
 #[test]
-fn rust_const_unreferenced_is_dead() {
+fn test_rust_const_unreferenced_is_dead() {
     let source = r#"
 const UNUSED_CONST: i32 = 42;
 "#;
@@ -149,7 +248,7 @@ const UNUSED_CONST: i32 = 42;
 }
 
 #[test]
-fn rust_enum_unreferenced_is_dead() {
+fn test_rust_enum_unreferenced_is_dead() {
     let source = r#"
 enum UnusedEnum {
     A,
@@ -161,7 +260,7 @@ enum UnusedEnum {
 }
 
 #[test]
-fn rust_dunder_functions_are_ignored() {
+fn test_rust_dunder_functions_are_ignored() {
     let source = r#"
 fn __private_internal() {}
 "#;
@@ -170,7 +269,7 @@ fn __private_internal() {}
 }
 
 #[test]
-fn rust_column_numbers_are_correct() {
+fn test_rust_column_numbers_are_correct() {
     let source = r#"fn foo() {}"#;
     let dead = analyze_source(source, "rs");
     assert_eq!(dead.len(), 1);
@@ -184,7 +283,7 @@ fn rust_column_numbers_are_correct() {
 // =============================================================================
 
 #[test]
-fn python_unreferenced_function_is_dead() {
+fn test_python_unreferenced_function_is_dead() {
     let source = r#"
 def unused_function():
     pass
@@ -194,7 +293,7 @@ def unused_function():
 }
 
 #[test]
-fn python_referenced_function_is_not_dead() {
+fn test_python_referenced_function_is_not_dead() {
     let source = r#"
 def used_function():
     pass
@@ -207,7 +306,7 @@ def caller():
 }
 
 #[test]
-fn python_main_is_not_dead() {
+fn test_python_main_is_not_dead() {
     let source = r#"
 def main():
     print("hello")
@@ -217,7 +316,7 @@ def main():
 }
 
 #[test]
-fn python_test_functions_are_not_dead() {
+fn test_python_test_functions_are_not_dead() {
     let source = r#"
 def test_something():
     assert True
@@ -227,7 +326,7 @@ def test_something():
 }
 
 #[test]
-fn python_dunder_methods_are_ignored() {
+fn test_python_dunder_methods_are_ignored() {
     let source = r#"
 class MyClass:
     def __init__(self):
@@ -242,7 +341,7 @@ class MyClass:
 }
 
 #[test]
-fn python_class_unreferenced_is_dead() {
+fn test_python_class_unreferenced_is_dead() {
     let source = r#"
 class UnusedClass:
     pass
@@ -252,7 +351,7 @@ class UnusedClass:
 }
 
 #[test]
-fn python_class_referenced_is_not_dead() {
+fn test_python_class_referenced_is_not_dead() {
     let source = r#"
 class UsedClass:
     pass
@@ -265,7 +364,7 @@ def use_it():
 }
 
 #[test]
-fn python_nodangle_comment_excludes_function() {
+fn test_python_nodangle_comment_excludes_function() {
     let source = r#"
 def intentionally_unused():  # nodangle
     pass
@@ -275,7 +374,7 @@ def intentionally_unused():  # nodangle
 }
 
 #[test]
-fn python_module_level_variable_unreferenced_is_dead() {
+fn test_python_module_level_variable_unreferenced_is_dead() {
     let source = r#"
 UNUSED_VAR = 42
 "#;
@@ -284,7 +383,7 @@ UNUSED_VAR = 42
 }
 
 #[test]
-fn python_column_numbers_are_correct() {
+fn test_python_column_numbers_are_correct() {
     let source = r#"def foo(): pass"#;
     let dead = analyze_source(source, "py");
     assert_eq!(dead.len(), 1);
