@@ -78,6 +78,6 @@ solo-ref-stream \
   | xargs \
       -I {} \
       git grep -Ewn "({} = )|((fn|def|class) {})" \
-  | grep -Ev '#.*\bnodangle\b' \
+  | grep -Ev -e '#.*\bnodangle\b' -e '.*\.rs.*\<drop\>' \
   | sort \
   | grep -v -e test_ -e '__\b'
