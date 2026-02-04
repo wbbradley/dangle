@@ -367,6 +367,17 @@ def test_something():
 }
 
 #[test]
+fn test_python_test_classes_are_not_dead() {
+    let source = r#"
+class TestMyFeature:
+    def test_something(self):
+        assert True
+"#;
+    let dead = dead_names(source, "py");
+    assert!(!dead.contains(&"TestMyFeature".to_string()));
+}
+
+#[test]
 fn test_python_dunder_methods_are_ignored() {
     let source = r#"
 class MyClass:
@@ -431,4 +442,55 @@ fn test_python_column_numbers_are_correct() {
     assert_eq!(dead[0].name, "foo");
     assert_eq!(dead[0].line, 1);
     assert_eq!(dead[0].column, 5); // "def " is 4 chars, so column 5 (1-indexed)
+}
+
+// =============================================================================
+// Rust Attribute String Reference Tests
+// =============================================================================
+
+#[test]
+fn test_rust_attribute_string_counts_as_reference() {
+    let source = r#"
+fn default_value() -> i32 { 42 }
+
+#[derive(Default)]
+struct Config {
+    #[serde(default = "default_value")]
+    value: i32,
+}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"default_value".to_string()));
+}
+
+#[test]
+fn test_rust_attribute_string_invalid_identifier_not_counted() {
+    let source = r#"
+fn unused_fn() {}
+
+#[some_attr(key = "not-a-valid-identifier")]
+struct Config {
+    value: i32,
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // "not-a-valid-identifier" contains hyphens, so it should not count as a reference
+    // unused_fn should still be dead
+    assert!(dead.contains(&"unused_fn".to_string()));
+}
+
+#[test]
+fn test_rust_attribute_string_path_extracts_leaf() {
+    let source = r#"
+fn default_monitoring() -> bool { true }
+
+#[derive(Default)]
+struct Config {
+    #[serde(default = "defaults::default_monitoring")]
+    monitoring: bool,
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Should extract "default_monitoring" from "defaults::default_monitoring"
+    assert!(!dead.contains(&"default_monitoring".to_string()));
 }

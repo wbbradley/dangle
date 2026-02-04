@@ -50,12 +50,21 @@ This means symbols used only in tests won't be flagged as dead code.
 
 More tree-sitter language support is planned for future releases.
 
+## Reference Detection
+
+Dangle recognizes references in:
+
+- Direct identifier usage (function calls, type annotations, etc.)
+- Method calls (field identifiers)
+- String literals in Rust attributes (e.g., `#[serde(default = "my_default_fn")]`)
+  - Paths like `"module::func_name"` extract the leaf segment as the reference
+
 ## Filters
 
 Dangle automatically excludes:
 
 - `main` functions
-- `test_*` functions
+- `test_*` functions and `Test*` classes (Python)
 - `#[test]` functions (Rust)
 - `#[allow(unused)]` and `#[allow(dead_code)]` definitions (Rust)
 - `__*` names (Python dunders, etc.)

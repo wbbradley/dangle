@@ -31,6 +31,7 @@ impl LanguageSupport for RustLanguage {
         (identifier) @ref
         (type_identifier) @ref
         (field_identifier) @ref
+        (attribute_item (attribute (token_tree (string_literal) @ref)))
         "#
     }
 
@@ -61,7 +62,10 @@ impl LanguageSupport for PythonLanguage {
     }
 
     fn should_ignore(&self, name: &str) -> bool {
-        name == "main" || name.starts_with("test_") || name.starts_with("__")
+        name == "main"
+            || name.starts_with("test_")
+            || name.starts_with("Test")
+            || name.starts_with("__")
     }
 }
 

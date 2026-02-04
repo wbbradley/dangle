@@ -6,6 +6,15 @@ use tree_sitter::{Node, Parser, Query, QueryCursor};
 
 use crate::languages::LanguageSupport;
 
+/// Check if a string is a valid Rust identifier (alphanumeric + underscore, not starting with digit)
+fn is_valid_identifier(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
+        && s.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
 /// Check if a node is inside a Rust trait impl block (as opposed to an inherent impl)
 fn is_inside_trait_impl(node: Node) -> bool {
     let mut current = node.parent();
@@ -195,11 +204,26 @@ pub fn extract_references(source: &str, lang: &dyn LanguageSupport) -> Result<Ve
 
     while let Some(m) = matches.next() {
         for capture in m.captures {
-            let name = capture
+            let text = capture
                 .node
                 .utf8_text(source.as_bytes())
                 .unwrap_or("")
                 .to_string();
+
+            // Handle string literals in attributes (e.g., #[serde(default = "func_name")])
+            let name = if capture.node.kind() == "string_literal" {
+                // Strip surrounding quotes
+                let inner = text.trim_matches('"');
+                // Handle paths like "module::func" by taking the last segment
+                let leaf = inner.rsplit("::").next().unwrap_or(inner);
+                if is_valid_identifier(leaf) {
+                    leaf.to_string()
+                } else {
+                    continue;
+                }
+            } else {
+                text
+            };
 
             references.push(Reference { name });
         }
