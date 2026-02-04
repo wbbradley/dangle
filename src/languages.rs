@@ -30,6 +30,7 @@ impl LanguageSupport for RustLanguage {
         r#"
         (identifier) @ref
         (type_identifier) @ref
+        (field_identifier) @ref
         "#
     }
 

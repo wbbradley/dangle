@@ -37,9 +37,11 @@ regex-based approaches, it correctly ignores symbols that appear only in strings
 The algorithm:
 
 1. Discovers source files via `git ls-files`
-2. Extracts definitions (functions, classes, structs, etc.) using tree-sitter queries
-3. Extracts all identifier references
+2. Extracts definitions from non-test files using tree-sitter queries
+3. Extracts all identifier references from all files (including tests)
 4. Reports definitions that are referenced only once (the definition itself)
+
+This means symbols used only in tests won't be flagged as dead code.
 
 ## Supported Languages
 
@@ -55,6 +57,7 @@ Dangle automatically excludes:
 - `main` functions
 - `test_*` functions
 - `#[test]` functions (Rust)
+- `#[allow(unused)]` and `#[allow(dead_code)]` definitions (Rust)
 - `__*` names (Python dunders, etc.)
 - Functions inside Rust trait impls (e.g., `impl Drop`, `impl Iterator`, etc.)
 - Private traits that are not implemented (public traits are assumed to be API)

@@ -12,6 +12,10 @@ struct Args {
     verbose: bool,
 }
 
+fn is_test_file(path: &str) -> bool {
+    path.contains("test_") || path.contains("/tests/")
+}
+
 fn get_git_files() -> Result<Vec<String>> {
     let output = Command::new("git")
         .args(["ls-files"])
@@ -26,7 +30,7 @@ fn get_git_files() -> Result<Vec<String>> {
             let path = Path::new(line);
             if let Some(ext) = path.extension() {
                 let ext_str = ext.to_string_lossy();
-                (ext_str == "rs" || ext_str == "py") && !line.contains("test_")
+                ext_str == "rs" || ext_str == "py"
             } else {
                 false
             }
@@ -60,26 +64,30 @@ fn main() -> Result<()> {
             }
         };
 
-        match symbols::extract_definitions(path, &source, lang) {
-            Ok(defs) => {
-                if args.verbose {
-                    for def in &defs {
-                        eprintln!(
-                            "Found definition: {} in {}:{}:{} ({})",
-                            def.name, def.file, def.line, def.column, def.kind
-                        );
+        // Only extract definitions from non-test files
+        if !is_test_file(file_path) {
+            match symbols::extract_definitions(path, &source, lang) {
+                Ok(defs) => {
+                    if args.verbose {
+                        for def in &defs {
+                            eprintln!(
+                                "Found definition: {} in {}:{}:{} ({})",
+                                def.name, def.file, def.line, def.column, def.kind
+                            );
+                        }
                     }
+                    all_definitions.extend(defs);
                 }
-                all_definitions.extend(defs);
-            }
-            Err(e) => {
-                eprintln!(
-                    "Warning: Could not parse definitions in {}: {}",
-                    file_path, e
-                );
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Could not parse definitions in {}: {}",
+                        file_path, e
+                    );
+                }
             }
         }
 
+        // Extract references from ALL files (including tests)
         match symbols::extract_references(&source, lang) {
             Ok(refs) => {
                 for r in refs {

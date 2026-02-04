@@ -124,6 +124,27 @@ impl MyStruct {
 }
 
 #[test]
+fn test_rust_method_call_counts_as_reference() {
+    let source = r#"
+struct MyStruct;
+
+impl MyStruct {
+    fn used_method(&self) {
+        println!("used");
+    }
+}
+
+fn caller() {
+    let s = MyStruct;
+    s.used_method();
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Method calls (field_identifier) should count as references
+    assert!(!dead.contains(&"used_method".to_string()));
+}
+
+#[test]
 fn test_rust_private_trait_unreferenced_is_dead() {
     let source = r#"
 trait UnusedTrait {
@@ -201,6 +222,26 @@ fn some_test_without_prefix() {
     let dead = dead_names(source, "rs");
     // Functions with #[test] attribute should be ignored even without test_ prefix
     assert!(!dead.contains(&"some_test_without_prefix".to_string()));
+}
+
+#[test]
+fn test_rust_allow_unused_ignores_function() {
+    let source = r#"
+#[allow(unused)]
+fn intentionally_unused_fn() {}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"intentionally_unused_fn".to_string()));
+}
+
+#[test]
+fn test_rust_allow_dead_code_ignores_function() {
+    let source = r#"
+#[allow(dead_code)]
+fn dead_code_fn() {}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"dead_code_fn".to_string()));
 }
 
 #[test]

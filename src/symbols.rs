@@ -35,34 +35,50 @@ fn is_public_trait(node: Node) -> bool {
     false
 }
 
-/// Check if a function has a #[test] attribute
-fn has_test_attribute(node: Node, source: &[u8]) -> bool {
-    if let Some(func) = node.parent()
-        && func.kind() == "function_item" {
-            // Check for attribute_item children of the function
-            let mut cursor = func.walk();
-            for child in func.children(&mut cursor) {
-                if child.kind() == "attribute_item"
-                    && let Ok(text) = child.utf8_text(source)
-                        && text.contains("test") {
-                            return true;
-                        }
-            }
-            // Also check preceding siblings (attributes may be separate nodes)
-            let mut sibling = func.prev_sibling();
-            while let Some(sib) = sibling {
-                if sib.kind() == "attribute_item" {
-                    if let Ok(text) = sib.utf8_text(source)
-                        && text.contains("test") {
-                            return true;
-                        }
-                } else if sib.kind() != "line_comment" && sib.kind() != "block_comment" {
-                    // Stop if we hit something that's not an attribute or comment
-                    break;
-                }
-                sibling = sib.prev_sibling();
+/// Check if an attribute indicates the definition should be skipped
+fn is_skip_attribute(attr_text: &str) -> bool {
+    // Skip #[test] functions
+    if attr_text.contains("test") {
+        return true;
+    }
+    // Skip #[allow(unused)], #[allow(dead_code)], etc.
+    if attr_text.contains("allow")
+        && (attr_text.contains("unused") || attr_text.contains("dead_code"))
+    {
+        return true;
+    }
+    false
+}
+
+/// Check if a definition has an attribute that indicates it should be skipped
+fn has_skip_attribute(node: Node, source: &[u8]) -> bool {
+    if let Some(parent) = node.parent() {
+        // Check for attribute_item children of the parent
+        let mut cursor = parent.walk();
+        for child in parent.children(&mut cursor) {
+            if child.kind() == "attribute_item"
+                && let Ok(text) = child.utf8_text(source)
+                && is_skip_attribute(text)
+            {
+                return true;
             }
         }
+        // Also check preceding siblings (attributes may be separate nodes)
+        let mut sibling = parent.prev_sibling();
+        while let Some(sib) = sibling {
+            if sib.kind() == "attribute_item" {
+                if let Ok(text) = sib.utf8_text(source)
+                    && is_skip_attribute(text)
+                {
+                    return true;
+                }
+            } else if sib.kind() != "line_comment" && sib.kind() != "block_comment" {
+                // Stop if we hit something that's not an attribute or comment
+                break;
+            }
+            sibling = sib.prev_sibling();
+        }
+    }
     false
 }
 
@@ -128,8 +144,8 @@ pub fn extract_definitions(
                 continue;
             }
 
-            // Skip functions with #[test] attribute
-            if has_test_attribute(capture.node, source.as_bytes()) {
+            // Skip definitions with #[test], #[allow(unused)], #[allow(dead_code)], etc.
+            if has_skip_attribute(capture.node, source.as_bytes()) {
                 continue;
             }
 
