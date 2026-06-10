@@ -57,6 +57,8 @@ This means symbols used only in tests won't be flagged as dead code.
 - Ruby
 - PHP
 - Bash
+- Kotlin
+- Lua
 
 More tree-sitter language support is planned for future releases.
 
@@ -90,6 +92,9 @@ Dangle automatically excludes:
 - Ruby: `initialize`, `method_missing`, `respond_to_missing?`
 - PHP: `__*` magic methods (`__construct`, `__get`, ...)
 - Bash: `main`
+- Kotlin: `main`, `@Test`/`@ParameterizedTest`-annotated functions, and `override` functions
+  (overrides are invoked via the supertype)
+- Lua: `_*` names (intentionally-unused convention, metamethods like `__index`)
 - Public/exported symbols, per language (pass `--include-public` to report them):
   - Rust: public traits (they may be implemented by downstream crates)
   - TypeScript/JavaScript: anything inside an `export` statement
@@ -97,6 +102,10 @@ Dangle automatically excludes:
   - Java/C#: declarations with the `public` modifier
   - PHP: class members with an explicit `public` modifier (no-modifier members and all
     top-level functions/classes stay reportable)
+  - Kotlin: top-level and class-member declarations without a `private`/`internal`
+    modifier (default visibility is public; function-local `val`/`var` stay reportable)
+  - Lua: module-field functions (`function M.foo()`, `function M:bar()`,
+    `M.foo = function()`) — Lua's export idiom; plain locals/globals stay reportable
 - Definitions marked with `nodangle` in a comment on the same line
 
 Test files contribute references but their definitions are never reported. What counts as a
@@ -111,6 +120,9 @@ test file is per-language:
 - Ruby: filename ends with `_spec.rb` or `_test.rb`, or path contains a `spec/` or
   `test/` directory
 - PHP: filename ends with `Test.php`, or path contains a `tests/` directory
+- Kotlin: path contains `src/test/`, or filename ends with `Test.kt`
+- Lua: filename ends with `_spec.lua`, or path contains a `spec/` or `tests/` directory
+  (busted convention)
 
 ## Caveats for Dynamic Languages
 

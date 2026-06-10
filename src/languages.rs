@@ -3,6 +3,8 @@ pub mod csharp;
 pub mod go;
 pub mod java;
 pub mod javascript;
+pub mod kotlin;
+pub mod lua;
 pub mod php;
 pub mod python;
 pub mod ruby;
@@ -51,6 +53,8 @@ pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupp
     static RUBY: ruby::RubyLanguage = ruby::RubyLanguage;
     static PHP: php::PhpLanguage = php::PhpLanguage;
     static BASH: bash::BashLanguage = bash::BashLanguage;
+    static KOTLIN: kotlin::KotlinLanguage = kotlin::KotlinLanguage;
+    static LUA: lua::LuaLanguage = lua::LuaLanguage;
 
     match ext {
         "rs" => Some(&RUST),
@@ -64,6 +68,8 @@ pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupp
         "rb" => Some(&RUBY),
         "php" => Some(&PHP),
         "sh" | "bash" => Some(&BASH),
+        "kt" | "kts" => Some(&KOTLIN),
+        "lua" => Some(&LUA),
         _ => None,
     }
 }

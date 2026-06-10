@@ -1595,3 +1595,292 @@ main() {
     let dead = dead_names(source, "sh");
     assert!(!dead.contains(&"main".to_string()));
 }
+
+// =============================================================================
+// Kotlin Tests
+// =============================================================================
+
+#[test]
+fn test_kotlin_unreferenced_private_function_is_dead() {
+    let source = r#"
+private fun unusedHelper() {}
+"#;
+    let dead = dead_names(source, "kt");
+    assert!(dead.contains(&"unusedHelper".to_string()));
+}
+
+#[test]
+fn test_kotlin_referenced_private_function_is_not_dead() {
+    let source = r#"
+private fun usedHelper() {}
+
+private fun caller() {
+    usedHelper()
+}
+"#;
+    let dead = dead_names(source, "kt");
+    assert!(!dead.contains(&"usedHelper".to_string()));
+    assert!(dead.contains(&"caller".to_string()));
+}
+
+#[test]
+fn test_kotlin_public_symbols_skipped_by_default() {
+    let source = r#"
+fun publicFunction() {}
+
+class PublicClass
+"#;
+    let dead = dead_names(source, "kt");
+    assert!(dead.is_empty());
+}
+
+#[test]
+fn test_kotlin_public_symbols_reported_with_include_public() {
+    let source = r#"
+fun publicFunction() {}
+
+class PublicClass
+"#;
+    let dead = dead_names_public(source, "kt");
+    assert!(dead.contains(&"publicFunction".to_string()));
+    assert!(dead.contains(&"PublicClass".to_string()));
+}
+
+#[test]
+fn test_kotlin_internal_function_is_reportable() {
+    // `internal` is repo-visible only, so like `private` it is not treated as public.
+    let source = r#"
+internal fun internalHelper() {}
+"#;
+    assert!(dead_names(source, "kt").contains(&"internalHelper".to_string()));
+}
+
+#[test]
+fn test_kotlin_private_class_object_and_property_are_dead() {
+    let source = r#"
+private class UnusedClass
+
+private object UnusedObject
+
+private val unusedProperty = 42
+"#;
+    let dead = dead_names(source, "kt");
+    assert!(dead.contains(&"UnusedClass".to_string()));
+    assert!(dead.contains(&"UnusedObject".to_string()));
+    assert!(dead.contains(&"unusedProperty".to_string()));
+}
+
+#[test]
+fn test_kotlin_function_local_val_is_reported() {
+    let source = r#"
+private fun worker() {
+    val unused = 1
+}
+
+private fun caller() {
+    worker()
+}
+"#;
+    let dead = dead_names(source, "kt");
+    assert!(dead.contains(&"unused".to_string()));
+}
+
+#[test]
+fn test_kotlin_main_is_ignored() {
+    let source = r#"
+fun main() {}
+"#;
+    let dead = dead_names_public(source, "kt");
+    assert!(!dead.contains(&"main".to_string()));
+}
+
+#[test]
+fn test_kotlin_test_annotated_function_is_skipped() {
+    let source = r#"
+import org.junit.jupiter.api.Test
+
+class FooTests {
+    @Test
+    fun somethingWorks() {}
+
+    @ParameterizedTest
+    fun parameterizedCheck() {}
+}
+"#;
+    let dead = dead_names_public(source, "kt");
+    assert!(!dead.contains(&"somethingWorks".to_string()));
+    assert!(!dead.contains(&"parameterizedCheck".to_string()));
+}
+
+#[test]
+fn test_kotlin_override_function_is_skipped() {
+    let source = r#"
+private class Widget {
+    override fun toString(): String = "widget"
+}
+"#;
+    let dead = dead_names_public(source, "kt");
+    assert!(!dead.contains(&"toString".to_string()));
+}
+
+#[test]
+fn test_kotlin_private_type_alias_is_dead() {
+    let source = r#"
+private typealias Handler = (Int) -> Unit
+"#;
+    let dead = dead_names(source, "kt");
+    assert!(dead.contains(&"Handler".to_string()));
+}
+
+#[test]
+fn test_kotlin_test_file_detection() {
+    let lang = get_language_for_extension("kt").unwrap();
+    assert!(lang.is_test_file("src/test/kotlin/FooTest.kt"));
+    assert!(lang.is_test_file("FooTest.kt"));
+    assert!(lang.is_test_file("app/src/test/kotlin/Bar.kt"));
+    assert!(!lang.is_test_file("src/main/kotlin/Foo.kt"));
+}
+
+// =============================================================================
+// Lua Tests
+// =============================================================================
+
+#[test]
+fn test_lua_unreferenced_local_function_is_dead() {
+    let source = r#"
+local function unused_helper() end
+"#;
+    let dead = dead_names(source, "lua");
+    assert!(dead.contains(&"unused_helper".to_string()));
+}
+
+#[test]
+fn test_lua_referenced_local_function_is_not_dead() {
+    let source = r#"
+local function used_helper() end
+
+local function caller()
+    used_helper()
+end
+
+caller()
+"#;
+    let dead = dead_names(source, "lua");
+    assert!(!dead.contains(&"used_helper".to_string()));
+    assert!(!dead.contains(&"caller".to_string()));
+}
+
+#[test]
+fn test_lua_unreferenced_local_variable_is_dead() {
+    let source = r#"
+local unused_var = 1
+local used_var = 2
+print(used_var)
+"#;
+    let dead = dead_names(source, "lua");
+    assert!(dead.contains(&"unused_var".to_string()));
+    assert!(!dead.contains(&"used_var".to_string()));
+}
+
+#[test]
+fn test_lua_module_function_skipped_by_default() {
+    let source = r#"
+local M = {}
+
+function M.foo() end
+
+return M
+"#;
+    let dead = dead_names(source, "lua");
+    assert!(!dead.contains(&"foo".to_string()));
+    let dead_public = dead_names_public(source, "lua");
+    assert!(dead_public.contains(&"foo".to_string()));
+}
+
+#[test]
+fn test_lua_module_function_called_in_source_is_not_dead() {
+    let source = r#"
+local M = {}
+
+function M.foo() end
+
+M.foo()
+
+return M
+"#;
+    let dead = dead_names_public(source, "lua");
+    assert!(!dead.contains(&"foo".to_string()));
+}
+
+#[test]
+fn test_lua_method_style_function_is_public() {
+    let source = r#"
+local M = {}
+
+function M:bar() end
+
+return M
+"#;
+    assert!(!dead_names(source, "lua").contains(&"bar".to_string()));
+    assert!(dead_names_public(source, "lua").contains(&"bar".to_string()));
+}
+
+#[test]
+fn test_lua_assigned_module_function_is_captured() {
+    let source = r#"
+local M = {}
+
+M.baz = function() end
+
+return M
+"#;
+    let dead = dead_names_public(source, "lua");
+    assert!(dead.contains(&"baz".to_string()));
+}
+
+#[test]
+fn test_lua_unreferenced_global_function_is_dead() {
+    let source = r#"
+function helper() end
+"#;
+    let dead = dead_names(source, "lua");
+    assert!(dead.contains(&"helper".to_string()));
+}
+
+#[test]
+fn test_lua_underscore_names_are_ignored() {
+    let source = r#"
+local _unused = 1
+
+local function _private_helper() end
+"#;
+    let dead = dead_names(source, "lua");
+    assert!(dead.is_empty());
+}
+
+#[test]
+fn test_lua_dot_index_reference_counts() {
+    let source = r#"
+local M = {}
+
+function M.helper() end
+
+local function caller()
+    M.helper()
+end
+
+caller()
+"#;
+    let dead = dead_names_public(source, "lua");
+    assert!(!dead.contains(&"helper".to_string()));
+}
+
+#[test]
+fn test_lua_test_file_detection() {
+    let lang = get_language_for_extension("lua").unwrap();
+    assert!(lang.is_test_file("foo_spec.lua"));
+    assert!(lang.is_test_file("spec/foo.lua"));
+    assert!(lang.is_test_file("tests/foo.lua"));
+    assert!(lang.is_test_file("lua/spec/bar.lua"));
+    assert!(!lang.is_test_file("lua/mymodule.lua"));
+}
