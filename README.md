@@ -37,7 +37,8 @@ regex-based approaches, it correctly ignores symbols that appear only in strings
 
 The algorithm:
 
-1. Discovers source files via `git ls-files`
+1. Discovers source files via `git ls-files` (extensionless scripts are recognized by their
+   shebang line, e.g. `#!/usr/bin/env python`)
 2. Extracts definitions from non-test files using tree-sitter queries
 3. Extracts all identifier references from all files (including tests)
 4. Reports definitions whose names are never referenced beyond the definitions themselves
