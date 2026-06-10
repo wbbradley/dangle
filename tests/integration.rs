@@ -801,6 +801,432 @@ function App() {
 }
 
 // =============================================================================
+// Go Tests
+// =============================================================================
+
+#[test]
+fn test_go_unreferenced_unexported_function_is_dead() {
+    let source = r#"
+package main
+
+func unusedHelper() {}
+"#;
+    let dead = dead_names(source, "go");
+    assert!(dead.contains(&"unusedHelper".to_string()));
+}
+
+#[test]
+fn test_go_referenced_function_is_not_dead() {
+    let source = r#"
+package main
+
+func usedHelper() {}
+
+func caller() {
+	usedHelper()
+}
+"#;
+    let dead = dead_names(source, "go");
+    assert!(!dead.contains(&"usedHelper".to_string()));
+    assert!(dead.contains(&"caller".to_string()));
+}
+
+#[test]
+fn test_go_exported_function_skipped_by_default() {
+    let source = r#"
+package main
+
+func PublicApi() {}
+"#;
+    let dead = dead_names(source, "go");
+    assert!(!dead.contains(&"PublicApi".to_string()));
+}
+
+#[test]
+fn test_go_exported_function_reported_with_include_public() {
+    let source = r#"
+package main
+
+func PublicApi() {}
+"#;
+    let dead = dead_names_public(source, "go");
+    assert!(dead.contains(&"PublicApi".to_string()));
+}
+
+#[test]
+fn test_go_main_and_init_are_not_dead() {
+    let source = r#"
+package main
+
+func main() {}
+
+func init() {}
+"#;
+    let dead = dead_names(source, "go");
+    assert!(!dead.contains(&"main".to_string()));
+    assert!(!dead.contains(&"init".to_string()));
+}
+
+#[test]
+fn test_go_unused_method_is_dead() {
+    let source = r#"
+package main
+
+type widget struct{}
+
+func (w widget) unusedMethod() {}
+
+func useWidget() widget {
+	return widget{}
+}
+"#;
+    let dead = dead_names(source, "go");
+    assert!(dead.contains(&"unusedMethod".to_string()));
+}
+
+#[test]
+fn test_go_top_level_type_const_var_detection() {
+    let source = r#"
+package main
+
+type unusedType struct{}
+
+const unusedConst = 42
+
+var unusedVar = "hello"
+
+var (
+	unusedGrouped = 1
+)
+"#;
+    let dead = dead_names(source, "go");
+    assert!(dead.contains(&"unusedType".to_string()));
+    assert!(dead.contains(&"unusedConst".to_string()));
+    assert!(dead.contains(&"unusedVar".to_string()));
+    assert!(dead.contains(&"unusedGrouped".to_string()));
+}
+
+#[test]
+fn test_go_type_referenced_is_not_dead() {
+    let source = r#"
+package main
+
+type config struct{}
+
+func loadConfig() config {
+	return config{}
+}
+"#;
+    let dead = dead_names(source, "go");
+    assert!(!dead.contains(&"config".to_string()));
+}
+
+#[test]
+fn test_go_test_functions_are_ignored() {
+    let source = r#"
+package main
+
+func TestFoo(t *testing.T) {}
+
+func BenchmarkBar(b *testing.B) {}
+"#;
+    let dead = dead_names_public(source, "go");
+    assert!(!dead.contains(&"TestFoo".to_string()));
+    assert!(!dead.contains(&"BenchmarkBar".to_string()));
+}
+
+#[test]
+fn test_go_test_file_detection() {
+    let lang = get_language_for_extension("go").unwrap();
+    assert!(lang.is_test_file("pkg/foo_test.go"));
+    assert!(!lang.is_test_file("pkg/foo.go"));
+}
+
+// =============================================================================
+// Java Tests
+// =============================================================================
+
+#[test]
+fn test_java_unused_private_method_is_dead() {
+    let source = r#"
+class App {
+    private void unusedHelper() {}
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(dead.contains(&"unusedHelper".to_string()));
+}
+
+#[test]
+fn test_java_referenced_method_is_not_dead() {
+    let source = r#"
+class App {
+    private void usedHelper() {}
+
+    private void caller() {
+        usedHelper();
+    }
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(!dead.contains(&"usedHelper".to_string()));
+}
+
+#[test]
+fn test_java_public_method_skipped_by_default() {
+    let source = r#"
+class App {
+    public void publicApi() {}
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(!dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_java_public_method_reported_with_include_public() {
+    let source = r#"
+class App {
+    public void publicApi() {}
+}
+"#;
+    let dead = dead_names_public(source, "java");
+    assert!(dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_java_test_annotated_method_is_skipped() {
+    let source = r#"
+class AppTest {
+    @Test
+    void somethingWorks() {}
+
+    @org.junit.jupiter.api.Test
+    void qualifiedAnnotation() {}
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(!dead.contains(&"somethingWorks".to_string()));
+    assert!(!dead.contains(&"qualifiedAnnotation".to_string()));
+}
+
+#[test]
+fn test_java_override_method_is_skipped() {
+    let source = r#"
+class App {
+    @Override
+    protected void onStart() {}
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(!dead.contains(&"onStart".to_string()));
+}
+
+#[test]
+fn test_java_tostring_is_ignored() {
+    let source = r#"
+class App {
+    private String toString(int x) { return ""; }
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(!dead.contains(&"toString".to_string()));
+}
+
+#[test]
+fn test_java_unused_class_is_dead() {
+    let source = r#"
+class UnusedClass {}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(dead.contains(&"UnusedClass".to_string()));
+}
+
+#[test]
+fn test_java_class_referenced_as_type_is_not_dead() {
+    let source = r#"
+class Foo {}
+
+class App {
+    private void useIt() {
+        Foo x = new Foo();
+    }
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(!dead.contains(&"Foo".to_string()));
+}
+
+#[test]
+fn test_java_unused_field_is_dead() {
+    let source = r#"
+class App {
+    private int unusedField;
+}
+"#;
+    let dead = dead_names(source, "java");
+    assert!(dead.contains(&"unusedField".to_string()));
+}
+
+#[test]
+fn test_java_test_file_detection() {
+    let lang = get_language_for_extension("java").unwrap();
+    assert!(lang.is_test_file("src/test/java/com/example/AppTest.java"));
+    assert!(lang.is_test_file("src/main/java/AppTest.java"));
+    assert!(lang.is_test_file("TestHelpers.java"));
+    assert!(!lang.is_test_file("src/main/java/App.java"));
+}
+
+// =============================================================================
+// C# Tests
+// =============================================================================
+
+#[test]
+fn test_csharp_unused_private_method_is_dead() {
+    let source = r#"
+class App {
+    private void UnusedHelper() {}
+}
+"#;
+    let dead = dead_names(source, "cs");
+    assert!(dead.contains(&"UnusedHelper".to_string()));
+}
+
+#[test]
+fn test_csharp_referenced_method_is_not_dead() {
+    let source = r#"
+class App {
+    private void UsedHelper() {}
+
+    private void Caller() {
+        UsedHelper();
+    }
+}
+"#;
+    let dead = dead_names(source, "cs");
+    assert!(!dead.contains(&"UsedHelper".to_string()));
+}
+
+#[test]
+fn test_csharp_public_member_skipped_by_default() {
+    let source = r#"
+public class App {
+    public void PublicApi() {}
+    public int PublicProp { get; set; }
+}
+"#;
+    let dead = dead_names(source, "cs");
+    assert!(!dead.contains(&"App".to_string()));
+    assert!(!dead.contains(&"PublicApi".to_string()));
+    assert!(!dead.contains(&"PublicProp".to_string()));
+}
+
+#[test]
+fn test_csharp_public_member_reported_with_include_public() {
+    let source = r#"
+public class App {
+    public void PublicApi() {}
+}
+"#;
+    let dead = dead_names_public(source, "cs");
+    assert!(dead.contains(&"App".to_string()));
+    assert!(dead.contains(&"PublicApi".to_string()));
+}
+
+#[test]
+fn test_csharp_fact_attributed_method_is_skipped() {
+    let source = r#"
+class AppTests {
+    [Fact]
+    void SomethingWorks() {}
+
+    [Xunit.Theory]
+    void TheoryCase() {}
+}
+"#;
+    let dead = dead_names(source, "cs");
+    assert!(!dead.contains(&"SomethingWorks".to_string()));
+    assert!(!dead.contains(&"TheoryCase".to_string()));
+}
+
+#[test]
+fn test_csharp_main_is_ignored() {
+    let source = r#"
+class Program {
+    static void Main(string[] args) {}
+}
+"#;
+    let dead = dead_names(source, "cs");
+    assert!(!dead.contains(&"Main".to_string()));
+}
+
+#[test]
+fn test_csharp_unreferenced_partial_class_is_dead() {
+    let source = r#"
+partial class Config {
+    private int x;
+}
+
+partial class Config {
+    private int y;
+}
+"#;
+    let dead = dead_names(source, "cs");
+    // Two definitions of the same name must not keep each other alive
+    assert!(dead.contains(&"Config".to_string()));
+}
+
+#[test]
+fn test_csharp_referenced_partial_class_is_not_dead() {
+    let source = r#"
+partial class Config {}
+
+partial class Config {}
+
+class App {
+    private Config MakeConfig() {
+        return new Config();
+    }
+}
+"#;
+    let dead = dead_names(source, "cs");
+    assert!(!dead.contains(&"Config".to_string()));
+}
+
+#[test]
+fn test_csharp_test_file_detection() {
+    let lang = get_language_for_extension("cs").unwrap();
+    assert!(lang.is_test_file("src/AppTest.cs"));
+    assert!(lang.is_test_file("src/AppTests.cs"));
+    assert!(lang.is_test_file("proj/tests/Helpers.cs"));
+    assert!(!lang.is_test_file("src/App.cs"));
+}
+
+// =============================================================================
+// Same-name Definition Masking Regression Tests
+// =============================================================================
+
+#[test]
+fn test_rust_same_name_fns_in_different_modules_are_dead() {
+    let source = r#"
+mod alpha {
+    fn helper() {}
+}
+
+mod beta {
+    fn helper() {}
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // Two unused same-name definitions must not count each other as references
+    assert_eq!(
+        dead.iter().filter(|n| n.as_str() == "helper").count(),
+        2,
+        "both unused same-name fns should be reported"
+    );
+}
+
+// =============================================================================
 // Test-file Detection Tests
 // =============================================================================
 

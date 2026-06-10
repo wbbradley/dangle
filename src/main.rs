@@ -111,16 +111,20 @@ fn main() -> Result<()> {
             "function_item"
             | "function_definition"
             | "function_declaration"
-            | "generator_function_declaration" => "fn",
-            "struct_item" => "struct",
+            | "generator_function_declaration"
+            | "method_declaration" => "fn",
+            "struct_item" | "struct_declaration" => "struct",
             "enum_item" | "enum_declaration" => "enum",
-            "const_item" => "const",
+            "const_item" | "const_spec" => "const",
             "static_item" => "static",
             "mod_item" => "mod",
             "class_definition" | "class_declaration" | "abstract_class_declaration" => "class",
             "interface_declaration" => "interface",
-            "type_alias_declaration" => "type",
-            "assignment" | "variable_declarator" => "var",
+            "type_alias_declaration" | "type_spec" | "type_alias" => "type",
+            "record_declaration" => "record",
+            "annotation_type_declaration" => "annotation",
+            "property_declaration" => "prop",
+            "assignment" | "variable_declarator" | "var_spec" => "var",
             _ => &def.kind,
         };
         println!(

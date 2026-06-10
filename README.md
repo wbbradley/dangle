@@ -40,7 +40,8 @@ The algorithm:
 1. Discovers source files via `git ls-files`
 2. Extracts definitions from non-test files using tree-sitter queries
 3. Extracts all identifier references from all files (including tests)
-4. Reports definitions that are referenced only once (the definition itself)
+4. Reports definitions whose names are never referenced beyond the definitions themselves
+   (multiple same-name definitions — e.g. C# partial classes — do not keep each other alive)
 
 This means symbols used only in tests won't be flagged as dead code.
 
@@ -50,6 +51,9 @@ This means symbols used only in tests won't be flagged as dead code.
 - Python
 - TypeScript / TSX
 - JavaScript / JSX
+- Go
+- Java
+- C#
 
 More tree-sitter language support is planned for future releases.
 
@@ -73,9 +77,15 @@ Dangle automatically excludes:
 - `__*` names (Python dunders, etc.)
 - `_*` names (TypeScript/JavaScript intentionally-unused convention)
 - Functions inside Rust trait impls (e.g., `impl Drop`, `impl Iterator`, etc.)
+- Go: `main`, `init`, `_`, and `Test*`/`Benchmark*`/`Fuzz*`/`Example*` functions
+- Java: `main`, `toString`, `equals`, `hashCode`, and methods annotated with `@Test`,
+  `@ParameterizedTest`, `@RepeatedTest`, or `@Override` (overrides are invoked via the supertype)
+- C#: `Main`, and methods attributed with `[Test]`, `[Fact]`, `[Theory]`, or `[TestMethod]`
 - Public/exported symbols, per language (pass `--include-public` to report them):
   - Rust: public traits (they may be implemented by downstream crates)
   - TypeScript/JavaScript: anything inside an `export` statement
+  - Go: capitalized (exported) names
+  - Java/C#: declarations with the `public` modifier
 - Definitions marked with `nodangle` in a comment on the same line
 
 Test files contribute references but their definitions are never reported. What counts as a
@@ -84,6 +94,9 @@ test file is per-language:
 - Rust/Python: path contains `test_` or `/tests/`
 - TypeScript/JavaScript: filename contains `.test.` or `.spec.`, or path contains `__tests__/`
 - TypeScript: `.d.ts` ambient declaration files are also treated as reference-only
+- Go: filename ends with `_test.go`
+- Java: path contains `/src/test/`, or filename matches `Test*.java` / `*Test.java`
+- C#: filename ends with `Test.cs` or `Tests.cs`, or path contains `/tests/`
 
 ## License
 

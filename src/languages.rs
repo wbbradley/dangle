@@ -1,3 +1,6 @@
+pub mod csharp;
+pub mod go;
+pub mod java;
 pub mod javascript;
 pub mod python;
 pub mod rust;
@@ -34,6 +37,9 @@ pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupp
         typescript::TypeScriptLanguage { tsx: false };
     static TSX: typescript::TypeScriptLanguage = typescript::TypeScriptLanguage { tsx: true };
     static JAVASCRIPT: javascript::JavaScriptLanguage = javascript::JavaScriptLanguage;
+    static GO: go::GoLanguage = go::GoLanguage;
+    static JAVA: java::JavaLanguage = java::JavaLanguage;
+    static CSHARP: csharp::CSharpLanguage = csharp::CSharpLanguage;
 
     match ext {
         "rs" => Some(&RUST),
@@ -41,6 +47,9 @@ pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupp
         "ts" | "mts" | "cts" => Some(&TYPESCRIPT),
         "tsx" => Some(&TSX),
         "js" | "mjs" | "cjs" | "jsx" => Some(&JAVASCRIPT),
+        "go" => Some(&GO),
+        "java" => Some(&JAVA),
+        "cs" => Some(&CSHARP),
         _ => None,
     }
 }
