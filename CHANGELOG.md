@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0] - 2026-06-10
+
+### Breaking Changes
+
+- **Library API:** `languages::LanguageSupport::normalize_reference` now returns `Vec<String>`
+  instead of `Option<String>` (one capture can expand to several symbol names), and its first
+  argument is the query capture name (e.g. `"macro_string"`) instead of the tree-sitter node
+  kind. Implementers should return `vec![name]` / `Vec::new()` in place of `Some(name)` / `None`
+  and match on the capture names used in their `references_query`. No CLI impact.
+
+### Added
+
+- Rust: identifiers used as inline format args in macro strings now count as references
+  (e.g. `format!("query={QUERY}")`, `panic!("failed with {CODE}")`), including raw strings,
+  format specs (`{value:?}`, `{value:>8}`), and width/precision args (`{x:>WIDTH$.PRECISION$}`).
+  Escaped braces (`{{name}}`) and positional args (`{}`, `{0}`) are correctly ignored.
+
+### Fixed
+
+- Rust consts/statics referenced only via inline format args in `format!`-family macros are no
+  longer falsely reported as dead code.
+
 ## [0.5.0] - 2026-06-10
 
 ### Breaking Changes

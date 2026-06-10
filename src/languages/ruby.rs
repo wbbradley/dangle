@@ -28,7 +28,7 @@ impl LanguageSupport for RubyLanguage {
         r#"
         (identifier) @ref
         (constant) @ref
-        (simple_symbol) @ref
+        (simple_symbol) @symbol_ref
         (hash_key_symbol) @ref
         (call method: (identifier) @_m
               arguments: (argument_list (string (string_content) @ref))
@@ -53,11 +53,11 @@ impl LanguageSupport for RubyLanguage {
             || path.contains("/test/")
     }
 
-    fn normalize_reference(&self, kind: &str, text: &str) -> Option<String> {
+    fn normalize_reference(&self, capture: &str, text: &str) -> Vec<String> {
         // Symbol literal text includes the leading colon (`:foo`).
-        if kind == "simple_symbol" {
-            return Some(text.trim_start_matches(':').to_string());
+        if capture == "symbol_ref" {
+            return vec![text.trim_start_matches(':').to_string()];
         }
-        Some(text.to_string())
+        vec![text.to_string()]
     }
 }

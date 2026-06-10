@@ -517,6 +517,102 @@ pub trait ExportedTrait {
 }
 
 // =============================================================================
+// Rust Inline Format Arg Tests
+// =============================================================================
+
+#[test]
+fn test_rust_inline_format_arg_counts_as_reference() {
+    let source = r#"
+const QUERY: &str = "query getPullRequests";
+
+fn build_request() -> String {
+    format!("query={QUERY}")
+}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"QUERY".to_string()));
+}
+
+#[test]
+fn test_rust_inline_format_arg_in_raw_string_counts_as_reference() {
+    let source = r##"
+const MERGED_QUERY: &str = "query getMerged";
+
+fn build_request() -> String {
+    format!(r#"{{"query": "{MERGED_QUERY}"}}"#)
+}
+"##;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"MERGED_QUERY".to_string()));
+}
+
+#[test]
+fn test_rust_inline_format_arg_with_spec_counts_as_reference() {
+    let source = r#"
+const DEBUG_VALUE: i32 = 1;
+const PADDED_VALUE: i32 = 2;
+
+fn show() {
+    println!("{DEBUG_VALUE:?}");
+    println!("{PADDED_VALUE:>8}");
+}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"DEBUG_VALUE".to_string()));
+    assert!(!dead.contains(&"PADDED_VALUE".to_string()));
+}
+
+#[test]
+fn test_rust_format_width_and_precision_args_count_as_references() {
+    let source = r#"
+const WIDTH: usize = 8;
+const PRECISION: usize = 2;
+
+fn show(x: f64) -> String {
+    format!("{x:>WIDTH$.PRECISION$}")
+}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"WIDTH".to_string()));
+    assert!(!dead.contains(&"PRECISION".to_string()));
+}
+
+#[test]
+fn test_rust_positional_and_escaped_format_args_not_counted() {
+    let source = r#"
+const NAME: &str = "n";
+
+fn show() {
+    println!("{{NAME}}");
+    println!("{}", 1);
+    println!("{0}", 2);
+}
+"#;
+    let dead = dead_names(source, "rs");
+    // `{{NAME}}` is an escaped literal brace, not a reference to NAME.
+    assert!(dead.contains(&"NAME".to_string()));
+}
+
+#[test]
+fn test_rust_inline_format_arg_in_other_macros_counts_as_reference() {
+    let source = r#"
+const EXIT_CODE: i32 = 3;
+const INNER_VALUE: i32 = 4;
+
+fn boom() {
+    panic!("failed with {EXIT_CODE}");
+}
+
+fn nested() {
+    assert!(false, "{}", format!("inner={INNER_VALUE}"));
+}
+"#;
+    let dead = dead_names(source, "rs");
+    assert!(!dead.contains(&"EXIT_CODE".to_string()));
+    assert!(!dead.contains(&"INNER_VALUE".to_string()));
+}
+
+// =============================================================================
 // TypeScript Tests
 // =============================================================================
 
@@ -798,6 +894,32 @@ function App() {
 "#;
     let dead = dead_names(source, "jsx");
     assert!(!dead.contains(&"MyComponent".to_string()));
+}
+
+#[test]
+fn test_javascript_template_literal_interpolation_counts_as_reference() {
+    let source = r#"
+function helperValue() { return 1; }
+
+function render() {
+    return `value: ${helperValue()}`;
+}
+"#;
+    let dead = dead_names(source, "js");
+    assert!(!dead.contains(&"helperValue".to_string()));
+}
+
+#[test]
+fn test_typescript_template_literal_interpolation_counts_as_reference() {
+    let source = r#"
+function helperValue(): number { return 1; }
+
+function render(): string {
+    return `value: ${helperValue()}`;
+}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"helperValue".to_string()));
 }
 
 // =============================================================================
@@ -1410,6 +1532,21 @@ end
 "#;
     let dead = dead_names(source, "rb");
     assert!(dead.contains(&"unused_method".to_string()));
+}
+
+#[test]
+fn test_ruby_string_interpolation_counts_as_reference() {
+    let source = r#"
+def helper_value
+  "x"
+end
+
+def render
+  "value: #{helper_value}"
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"helper_value".to_string()));
 }
 
 #[test]

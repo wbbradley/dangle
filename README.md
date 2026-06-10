@@ -71,6 +71,9 @@ Dangle recognizes references in:
 - Method calls (field identifiers)
 - String literals in Rust attributes (e.g., `#[serde(default = "my_default_fn")]`)
   - Paths like `"module::func_name"` extract the leaf segment as the reference
+- Rust inline format args in macro strings (e.g. `format!("query={QUERY}")`), including
+  width/precision args like `{x:>WIDTH$}`; escaped `{{braces}}` and positional `{}`/`{0}`
+  args are ignored
 - Ruby symbols (`:method_name`, `key:` hash keys) and string arguments to
   `send`/`public_send`/`define_method`/`method`/`respond_to?`
 - Bash command names and bare argument words (e.g. `trap cleanup EXIT`)

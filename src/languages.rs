@@ -36,9 +36,10 @@ pub trait LanguageSupport: Send + Sync {
         false
     }
 
-    /// Normalize a captured reference node's text into a symbol name; None drops it.
-    fn normalize_reference(&self, _kind: &str, text: &str) -> Option<String> {
-        Some(text.to_string())
+    /// Expand a captured reference node into zero or more symbol names.
+    /// `capture` is the query capture name (without '@'), `text` the node text.
+    fn normalize_reference(&self, _capture: &str, text: &str) -> Vec<String> {
+        vec![text.to_string()]
     }
 }
 

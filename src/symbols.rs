@@ -115,7 +115,8 @@ pub fn extract_references(source: &str, lang: &dyn LanguageSupport) -> Result<Ve
         for capture in m.captures {
             // Captures named with a leading underscore (e.g. @_m) are query
             // predicates' helpers, not references.
-            if query.capture_names()[capture.index as usize].starts_with('_') {
+            let capture_name = &query.capture_names()[capture.index as usize];
+            if capture_name.starts_with('_') {
                 continue;
             }
 
@@ -125,11 +126,11 @@ pub fn extract_references(source: &str, lang: &dyn LanguageSupport) -> Result<Ve
                 .unwrap_or("")
                 .to_string();
 
-            let Some(name) = lang.normalize_reference(capture.node.kind(), &text) else {
-                continue;
-            };
-
-            references.push(Reference { name });
+            references.extend(
+                lang.normalize_reference(capture_name, &text)
+                    .into_iter()
+                    .map(|name| Reference { name }),
+            );
         }
     }
 
