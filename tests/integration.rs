@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use dangle::{
     analysis::find_dead_code,
-    languages::get_language_for_extension,
+    languages::{get_language_for_extension, get_language_for_file, shebang_extension},
     symbols::{Definition, extract_definitions, extract_references},
 };
 
@@ -1883,4 +1883,113 @@ fn test_lua_test_file_detection() {
     assert!(lang.is_test_file("tests/foo.lua"));
     assert!(lang.is_test_file("lua/spec/bar.lua"));
     assert!(!lang.is_test_file("lua/mymodule.lua"));
+}
+
+// =============================================================================
+// Shebang Detection Tests
+// =============================================================================
+
+#[test]
+fn test_shebang_bash() {
+    assert_eq!(shebang_extension("#!/bin/bash"), Some("sh"));
+}
+
+#[test]
+fn test_shebang_sh() {
+    assert_eq!(shebang_extension("#!/bin/sh"), Some("sh"));
+}
+
+#[test]
+fn test_shebang_env_bash() {
+    assert_eq!(shebang_extension("#!/usr/bin/env bash"), Some("sh"));
+}
+
+#[test]
+fn test_shebang_env_split_string_with_flags() {
+    assert_eq!(
+        shebang_extension("#!/usr/bin/env -S bash -euo pipefail"),
+        Some("sh")
+    );
+}
+
+#[test]
+fn test_shebang_env_python3() {
+    assert_eq!(shebang_extension("#!/usr/bin/env python3"), Some("py"));
+}
+
+#[test]
+fn test_shebang_versioned_python() {
+    assert_eq!(shebang_extension("#!/usr/bin/python3.11"), Some("py"));
+}
+
+#[test]
+fn test_shebang_env_ruby() {
+    assert_eq!(shebang_extension("#!/usr/bin/env ruby"), Some("rb"));
+}
+
+#[test]
+fn test_shebang_env_node() {
+    assert_eq!(shebang_extension("#!/usr/bin/env node"), Some("js"));
+}
+
+#[test]
+fn test_shebang_unsupported_interpreter() {
+    assert_eq!(shebang_extension("#!/usr/bin/perl"), None);
+}
+
+#[test]
+fn test_shebang_not_a_shebang() {
+    assert_eq!(shebang_extension("echo hello"), None);
+}
+
+#[test]
+fn test_shebang_empty_line() {
+    assert_eq!(shebang_extension(""), None);
+}
+
+#[test]
+fn test_shebang_file_routing_bash_script() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("deploy");
+    let source = "#!/bin/bash\nunused_func() {\n  echo hi\n}\necho done\n";
+    std::fs::write(&path, source).unwrap();
+
+    let lang = get_language_for_file(&path).expect("shebang should route to bash");
+
+    let definitions =
+        extract_definitions(&path, source, lang, false).expect("failed to extract definitions");
+    let references = extract_references(source, lang).expect("failed to extract references");
+    let mut ref_counts: HashMap<String, usize> = HashMap::new();
+    for r in references {
+        *ref_counts.entry(r.name).or_insert(0) += 1;
+    }
+    let dead: Vec<String> = find_dead_code(definitions, &ref_counts)
+        .dead_code
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    assert!(dead.contains(&"unused_func".to_string()));
+}
+
+#[test]
+fn test_shebang_file_no_shebang_is_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("LICENSE");
+    std::fs::write(&path, "MIT License\n\nPermission is hereby granted...\n").unwrap();
+    assert!(get_language_for_file(&path).is_none());
+}
+
+#[test]
+fn test_shebang_file_binary_content_is_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("blob");
+    std::fs::write(&path, [0u8, 159, 146, 150, 0, 0]).unwrap();
+    assert!(get_language_for_file(&path).is_none());
+}
+
+#[test]
+fn test_extension_routing_still_works() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("foo.rs");
+    assert!(get_language_for_file(&path).is_some());
 }

@@ -25,14 +25,7 @@ fn get_git_files() -> Result<Vec<String>> {
 
     Ok(stdout
         .lines()
-        .filter(|line| {
-            let path = Path::new(line);
-            if let Some(ext) = path.extension() {
-                languages::get_language_for_extension(&ext.to_string_lossy()).is_some()
-            } else {
-                false
-            }
-        })
+        .filter(|line| languages::get_language_for_file(Path::new(line)).is_some())
         .map(String::from)
         .collect())
 }
@@ -47,11 +40,8 @@ fn main() -> Result<()> {
 
     for file_path in &files {
         let path = Path::new(file_path);
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-
-        let lang = match languages::get_language_for_extension(ext) {
-            Some(l) => l,
-            None => continue,
+        let Some(lang) = languages::get_language_for_file(path) else {
+            continue;
         };
 
         let source = match std::fs::read_to_string(path) {
