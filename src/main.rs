@@ -6,14 +6,13 @@ use dangle::{analysis, languages, symbols};
 
 #[derive(Parser)]
 #[command(name = "dangle")]
-#[command(about = "Find dead code candidates in Rust and Python projects")]
+#[command(about = "Find dead code candidates in multi-language projects")]
 struct Args {
     #[arg(short, long, help = "Show all definitions found")]
     verbose: bool,
-}
 
-fn is_test_file(path: &str) -> bool {
-    path.contains("test_") || path.contains("/tests/")
+    #[arg(long, help = "Also report public/exported symbols")]
+    include_public: bool,
 }
 
 fn get_git_files() -> Result<Vec<String>> {
@@ -29,8 +28,7 @@ fn get_git_files() -> Result<Vec<String>> {
         .filter(|line| {
             let path = Path::new(line);
             if let Some(ext) = path.extension() {
-                let ext_str = ext.to_string_lossy();
-                ext_str == "rs" || ext_str == "py"
+                languages::get_language_for_extension(&ext.to_string_lossy()).is_some()
             } else {
                 false
             }
@@ -65,8 +63,8 @@ fn main() -> Result<()> {
         };
 
         // Only extract definitions from non-test files
-        if !is_test_file(file_path) {
-            match symbols::extract_definitions(path, &source, lang) {
+        if !lang.is_test_file(file_path) {
+            match symbols::extract_definitions(path, &source, lang, args.include_public) {
                 Ok(defs) => {
                     if args.verbose {
                         for def in &defs {
@@ -110,14 +108,19 @@ fn main() -> Result<()> {
 
     for def in dead_sorted {
         let kind_abbrev = match def.kind.as_str() {
-            "function_item" | "function_definition" => "fn",
+            "function_item"
+            | "function_definition"
+            | "function_declaration"
+            | "generator_function_declaration" => "fn",
             "struct_item" => "struct",
-            "enum_item" => "enum",
+            "enum_item" | "enum_declaration" => "enum",
             "const_item" => "const",
             "static_item" => "static",
             "mod_item" => "mod",
-            "class_definition" => "class",
-            "assignment" => "var",
+            "class_definition" | "class_declaration" | "abstract_class_declaration" => "class",
+            "interface_declaration" => "interface",
+            "type_alias_declaration" => "type",
+            "assignment" | "variable_declarator" => "var",
             _ => &def.kind,
         };
         println!(

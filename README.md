@@ -27,6 +27,7 @@ path/to/file.py:17:1: class UnusedClass is not referenced
 ### Options
 
 - `-v, --verbose` - Show all definitions found
+- `--include-public` - Also report public/exported symbols (skipped by default)
 - `-h, --help` - Print help
 
 ## How It Works
@@ -47,6 +48,8 @@ This means symbols used only in tests won't be flagged as dead code.
 
 - Rust
 - Python
+- TypeScript / TSX
+- JavaScript / JSX
 
 More tree-sitter language support is planned for future releases.
 
@@ -68,9 +71,19 @@ Dangle automatically excludes:
 - `#[test]` functions (Rust)
 - `#[allow(unused)]` and `#[allow(dead_code)]` definitions (Rust)
 - `__*` names (Python dunders, etc.)
+- `_*` names (TypeScript/JavaScript intentionally-unused convention)
 - Functions inside Rust trait impls (e.g., `impl Drop`, `impl Iterator`, etc.)
-- Private traits that are not implemented (public traits are assumed to be API)
+- Public/exported symbols, per language (pass `--include-public` to report them):
+  - Rust: public traits (they may be implemented by downstream crates)
+  - TypeScript/JavaScript: anything inside an `export` statement
 - Definitions marked with `nodangle` in a comment on the same line
+
+Test files contribute references but their definitions are never reported. What counts as a
+test file is per-language:
+
+- Rust/Python: path contains `test_` or `/tests/`
+- TypeScript/JavaScript: filename contains `.test.` or `.spec.`, or path contains `__tests__/`
+- TypeScript: `.d.ts` ambient declaration files are also treated as reference-only
 
 ## License
 

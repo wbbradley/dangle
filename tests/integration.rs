@@ -7,16 +7,13 @@ use dangle::{
 };
 
 /// Helper to analyze source code and return dead code candidates
-fn analyze_source(source: &str, ext: &str) -> Vec<Definition> {
+fn analyze_source_with(source: &str, ext: &str, include_public: bool) -> Vec<Definition> {
     let lang = get_language_for_extension(ext).expect("unsupported extension");
-    let path = Path::new(match ext {
-        "rs" => "test.rs",
-        "py" => "test.py",
-        _ => "test.txt",
-    });
+    let path_str = format!("source.{ext}");
+    let path = Path::new(&path_str);
 
-    let definitions =
-        extract_definitions(path, source, lang).expect("failed to extract definitions");
+    let definitions = extract_definitions(path, source, lang, include_public)
+        .expect("failed to extract definitions");
     let references = extract_references(source, lang).expect("failed to extract references");
 
     let mut ref_counts: HashMap<String, usize> = HashMap::new();
@@ -27,9 +24,22 @@ fn analyze_source(source: &str, ext: &str) -> Vec<Definition> {
     find_dead_code(definitions, &ref_counts).dead_code
 }
 
+/// Helper to analyze source code and return dead code candidates (public symbols skipped)
+fn analyze_source(source: &str, ext: &str) -> Vec<Definition> {
+    analyze_source_with(source, ext, false)
+}
+
 /// Helper to get just the names of dead code
 fn dead_names(source: &str, ext: &str) -> Vec<String> {
     analyze_source(source, ext)
+        .into_iter()
+        .map(|d| d.name)
+        .collect()
+}
+
+/// Helper to get dead code names with --include-public semantics
+fn dead_names_public(source: &str, ext: &str) -> Vec<String> {
+    analyze_source_with(source, ext, true)
         .into_iter()
         .map(|d| d.name)
         .collect()
@@ -493,4 +503,337 @@ struct Config {
     let dead = dead_names(source, "rs");
     // Should extract "default_monitoring" from "defaults::default_monitoring"
     assert!(!dead.contains(&"default_monitoring".to_string()));
+}
+
+#[test]
+fn test_rust_public_trait_reported_with_include_public() {
+    let source = r#"
+pub trait ExportedTrait {
+    fn do_something(&self);
+}
+"#;
+    let dead = dead_names_public(source, "rs");
+    assert!(dead.contains(&"ExportedTrait".to_string()));
+}
+
+// =============================================================================
+// TypeScript Tests
+// =============================================================================
+
+#[test]
+fn test_typescript_unreferenced_function_is_dead() {
+    let source = r#"
+function unusedFunction() {}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(dead.contains(&"unusedFunction".to_string()));
+}
+
+#[test]
+fn test_typescript_referenced_function_is_not_dead() {
+    let source = r#"
+function usedFunction() {}
+
+function caller() {
+    usedFunction();
+}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"usedFunction".to_string()));
+    assert!(dead.contains(&"caller".to_string()));
+}
+
+#[test]
+fn test_typescript_unreferenced_class_is_dead() {
+    let source = r#"
+class UnusedClass {}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(dead.contains(&"UnusedClass".to_string()));
+}
+
+#[test]
+fn test_typescript_referenced_class_is_not_dead() {
+    let source = r#"
+class UsedClass {}
+
+function makeIt() {
+    return new UsedClass();
+}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"UsedClass".to_string()));
+}
+
+#[test]
+fn test_typescript_unreferenced_interface_is_dead() {
+    let source = r#"
+interface UnusedInterface {
+    field: number;
+}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(dead.contains(&"UnusedInterface".to_string()));
+}
+
+#[test]
+fn test_typescript_interface_used_in_type_annotation_is_not_dead() {
+    let source = r#"
+interface Config {
+    field: number;
+}
+
+function useIt(config: Config) {
+    return config.field;
+}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"Config".to_string()));
+}
+
+#[test]
+fn test_typescript_unreferenced_type_alias_is_dead() {
+    let source = r#"
+type UnusedAlias = string | number;
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(dead.contains(&"UnusedAlias".to_string()));
+}
+
+#[test]
+fn test_typescript_unreferenced_enum_is_dead() {
+    let source = r#"
+enum UnusedEnum {
+    A,
+    B,
+}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(dead.contains(&"UnusedEnum".to_string()));
+}
+
+#[test]
+fn test_typescript_unreferenced_top_level_const_is_dead() {
+    let source = r#"
+const unusedConst = 42;
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(dead.contains(&"unusedConst".to_string()));
+}
+
+#[test]
+fn test_typescript_method_call_counts_as_reference() {
+    let source = r#"
+function helper() {}
+
+const obj = {
+    helper,
+};
+
+function caller(o: typeof obj) {
+    o.helper();
+}
+"#;
+    let dead = dead_names(source, "ts");
+    // property_identifier and shorthand_property_identifier refs keep helper live
+    assert!(!dead.contains(&"helper".to_string()));
+}
+
+#[test]
+fn test_typescript_property_access_keeps_method_named_function_live() {
+    let source = r#"
+function render() {}
+
+const api = { draw: 1 };
+
+function caller() {
+    api.render();
+}
+"#;
+    let dead = dead_names(source, "ts");
+    // obj.method() usage (property_identifier) counts as a reference
+    assert!(!dead.contains(&"render".to_string()));
+}
+
+#[test]
+fn test_typescript_exported_function_skipped_by_default() {
+    let source = r#"
+export function publicApi() {}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_typescript_exported_function_reported_with_include_public() {
+    let source = r#"
+export function publicApi() {}
+"#;
+    let dead = dead_names_public(source, "ts");
+    assert!(dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_typescript_exported_const_skipped_by_default() {
+    let source = r#"
+export const publicConst = 42;
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"publicConst".to_string()));
+}
+
+#[test]
+fn test_typescript_exported_const_reported_with_include_public() {
+    let source = r#"
+export const publicConst = 42;
+"#;
+    let dead = dead_names_public(source, "ts");
+    assert!(dead.contains(&"publicConst".to_string()));
+}
+
+#[test]
+fn test_typescript_underscore_prefixed_names_are_ignored() {
+    let source = r#"
+function _internalHelper() {}
+"#;
+    let dead = dead_names(source, "ts");
+    assert!(!dead.contains(&"_internalHelper".to_string()));
+}
+
+// =============================================================================
+// TSX Tests
+// =============================================================================
+
+#[test]
+fn test_tsx_component_referenced_as_jsx_element_is_not_dead() {
+    let source = r#"
+function MyComponent() {
+    return <div />;
+}
+
+function App() {
+    return <MyComponent />;
+}
+"#;
+    let dead = dead_names(source, "tsx");
+    assert!(!dead.contains(&"MyComponent".to_string()));
+}
+
+#[test]
+fn test_tsx_unused_component_is_dead() {
+    let source = r#"
+function UnusedComponent() {
+    return <div />;
+}
+"#;
+    let dead = dead_names(source, "tsx");
+    assert!(dead.contains(&"UnusedComponent".to_string()));
+}
+
+// =============================================================================
+// JavaScript Tests
+// =============================================================================
+
+#[test]
+fn test_javascript_unreferenced_function_is_dead() {
+    let source = r#"
+function unusedFunction() {}
+"#;
+    let dead = dead_names(source, "js");
+    assert!(dead.contains(&"unusedFunction".to_string()));
+}
+
+#[test]
+fn test_javascript_unreferenced_class_is_dead() {
+    let source = r#"
+class UnusedClass {}
+"#;
+    let dead = dead_names(source, "js");
+    assert!(dead.contains(&"UnusedClass".to_string()));
+}
+
+#[test]
+fn test_javascript_referenced_function_is_not_dead() {
+    let source = r#"
+function usedFunction() {}
+
+function caller() {
+    usedFunction();
+}
+"#;
+    let dead = dead_names(source, "js");
+    assert!(!dead.contains(&"usedFunction".to_string()));
+}
+
+#[test]
+fn test_javascript_exported_symbol_skipped_by_default() {
+    let source = r#"
+export function publicApi() {}
+export const publicConst = 1;
+"#;
+    let dead = dead_names(source, "js");
+    assert!(!dead.contains(&"publicApi".to_string()));
+    assert!(!dead.contains(&"publicConst".to_string()));
+}
+
+#[test]
+fn test_javascript_exported_symbol_reported_with_include_public() {
+    let source = r#"
+export function publicApi() {}
+"#;
+    let dead = dead_names_public(source, "js");
+    assert!(dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_jsx_usage_counts_as_reference() {
+    let source = r#"
+function MyComponent() {
+    return <div />;
+}
+
+function App() {
+    return <MyComponent />;
+}
+"#;
+    let dead = dead_names(source, "jsx");
+    assert!(!dead.contains(&"MyComponent".to_string()));
+}
+
+// =============================================================================
+// Test-file Detection Tests
+// =============================================================================
+
+#[test]
+fn test_typescript_test_file_detection() {
+    let lang = get_language_for_extension("ts").unwrap();
+    assert!(lang.is_test_file("src/foo.test.ts"));
+    assert!(lang.is_test_file("src/__tests__/foo.ts"));
+    assert!(lang.is_test_file("src/types/foo.d.ts"));
+    assert!(!lang.is_test_file("src/foo.ts"));
+
+    let tsx = get_language_for_extension("tsx").unwrap();
+    assert!(tsx.is_test_file("src/foo.spec.tsx"));
+    assert!(!tsx.is_test_file("src/foo.tsx"));
+}
+
+#[test]
+fn test_javascript_test_file_detection() {
+    let lang = get_language_for_extension("js").unwrap();
+    assert!(lang.is_test_file("src/foo.test.js"));
+    assert!(lang.is_test_file("src/foo.spec.js"));
+    assert!(lang.is_test_file("src/__tests__/foo.js"));
+    assert!(!lang.is_test_file("src/foo.js"));
+}
+
+#[test]
+fn test_rust_and_python_test_file_detection_defaults() {
+    let rust = get_language_for_extension("rs").unwrap();
+    assert!(rust.is_test_file("crate/tests/integration.rs"));
+    assert!(rust.is_test_file("src/test_helpers.rs"));
+    assert!(!rust.is_test_file("src/main.rs"));
+
+    let python = get_language_for_extension("py").unwrap();
+    assert!(python.is_test_file("test_foo.py"));
+    assert!(!python.is_test_file("foo.py"));
 }
