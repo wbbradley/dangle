@@ -54,6 +54,9 @@ This means symbols used only in tests won't be flagged as dead code.
 - Go
 - Java
 - C#
+- Ruby
+- PHP
+- Bash
 
 More tree-sitter language support is planned for future releases.
 
@@ -65,6 +68,9 @@ Dangle recognizes references in:
 - Method calls (field identifiers)
 - String literals in Rust attributes (e.g., `#[serde(default = "my_default_fn")]`)
   - Paths like `"module::func_name"` extract the leaf segment as the reference
+- Ruby symbols (`:method_name`, `key:` hash keys) and string arguments to
+  `send`/`public_send`/`define_method`/`method`/`respond_to?`
+- Bash command names and bare argument words (e.g. `trap cleanup EXIT`)
 
 ## Filters
 
@@ -81,11 +87,16 @@ Dangle automatically excludes:
 - Java: `main`, `toString`, `equals`, `hashCode`, and methods annotated with `@Test`,
   `@ParameterizedTest`, `@RepeatedTest`, or `@Override` (overrides are invoked via the supertype)
 - C#: `Main`, and methods attributed with `[Test]`, `[Fact]`, `[Theory]`, or `[TestMethod]`
+- Ruby: `initialize`, `method_missing`, `respond_to_missing?`
+- PHP: `__*` magic methods (`__construct`, `__get`, ...)
+- Bash: `main`
 - Public/exported symbols, per language (pass `--include-public` to report them):
   - Rust: public traits (they may be implemented by downstream crates)
   - TypeScript/JavaScript: anything inside an `export` statement
   - Go: capitalized (exported) names
   - Java/C#: declarations with the `public` modifier
+  - PHP: class members with an explicit `public` modifier (no-modifier members and all
+    top-level functions/classes stay reportable)
 - Definitions marked with `nodangle` in a comment on the same line
 
 Test files contribute references but their definitions are never reported. What counts as a
@@ -97,6 +108,21 @@ test file is per-language:
 - Go: filename ends with `_test.go`
 - Java: path contains `/src/test/`, or filename matches `Test*.java` / `*Test.java`
 - C#: filename ends with `Test.cs` or `Tests.cs`, or path contains `/tests/`
+- Ruby: filename ends with `_spec.rb` or `_test.rb`, or path contains a `spec/` or
+  `test/` directory
+- PHP: filename ends with `Test.php`, or path contains a `tests/` directory
+
+## Caveats for Dynamic Languages
+
+Name-based counting cannot see dynamic dispatch:
+
+- Ruby: `send` with a computed name and `method_missing`-based dispatch are invisible,
+  so methods invoked only that way may be falsely reported. Symbol literals and string
+  arguments to `send`/`define_method` are counted to soften this.
+- PHP: variable functions (`$f()`, `call_user_func($var)`) are invisible to name-based
+  counting; functions invoked only that way may be falsely reported.
+- Bash: quoted function names in arguments (`trap 'cleanup' EXIT`) are not counted —
+  use the bare form (`trap cleanup EXIT`) or a `nodangle` comment.
 
 ## License
 

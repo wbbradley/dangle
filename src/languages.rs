@@ -1,8 +1,11 @@
+pub mod bash;
 pub mod csharp;
 pub mod go;
 pub mod java;
 pub mod javascript;
+pub mod php;
 pub mod python;
+pub mod ruby;
 pub mod rust;
 pub mod typescript;
 
@@ -28,6 +31,11 @@ pub trait LanguageSupport: Send + Sync {
     fn is_public(&self, _node: Node, _source: &[u8]) -> bool {
         false
     }
+
+    /// Normalize a captured reference node's text into a symbol name; None drops it.
+    fn normalize_reference(&self, _kind: &str, text: &str) -> Option<String> {
+        Some(text.to_string())
+    }
 }
 
 pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupport> {
@@ -40,6 +48,9 @@ pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupp
     static GO: go::GoLanguage = go::GoLanguage;
     static JAVA: java::JavaLanguage = java::JavaLanguage;
     static CSHARP: csharp::CSharpLanguage = csharp::CSharpLanguage;
+    static RUBY: ruby::RubyLanguage = ruby::RubyLanguage;
+    static PHP: php::PhpLanguage = php::PhpLanguage;
+    static BASH: bash::BashLanguage = bash::BashLanguage;
 
     match ext {
         "rs" => Some(&RUST),
@@ -50,6 +61,9 @@ pub fn get_language_for_extension(ext: &str) -> Option<&'static dyn LanguageSupp
         "go" => Some(&GO),
         "java" => Some(&JAVA),
         "cs" => Some(&CSHARP),
+        "rb" => Some(&RUBY),
+        "php" => Some(&PHP),
+        "sh" | "bash" => Some(&BASH),
         _ => None,
     }
 }

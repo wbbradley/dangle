@@ -4,6 +4,15 @@ use crate::languages::LanguageSupport;
 
 pub struct RustLanguage;
 
+/// Check if a string is a valid Rust identifier (alphanumeric + underscore, not starting with digit)
+fn is_valid_identifier(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
+        && s.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
 /// Check if a node is inside a Rust trait impl block (as opposed to an inherent impl)
 fn is_inside_trait_impl(node: Node) -> bool {
     let mut current = node.parent();
@@ -119,5 +128,16 @@ impl LanguageSupport for RustLanguage {
     fn is_public(&self, node: Node, _source: &[u8]) -> bool {
         // Rust public policy: only public traits (they may be implemented downstream)
         is_public_trait(node)
+    }
+
+    fn normalize_reference(&self, kind: &str, text: &str) -> Option<String> {
+        // String literals in attributes (e.g., #[serde(default = "module::func_name")]):
+        // strip quotes and take the last path segment.
+        if kind == "string_literal" {
+            let inner = text.trim_matches('"');
+            let leaf = inner.rsplit("::").next().unwrap_or(inner);
+            return is_valid_identifier(leaf).then(|| leaf.to_string());
+        }
+        Some(text.to_string())
     }
 }

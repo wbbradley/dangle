@@ -1263,3 +1263,335 @@ fn test_rust_and_python_test_file_detection_defaults() {
     assert!(python.is_test_file("test_foo.py"));
     assert!(!python.is_test_file("foo.py"));
 }
+
+// =============================================================================
+// Ruby Tests
+// =============================================================================
+
+#[test]
+fn test_ruby_unreferenced_method_is_dead() {
+    let source = r#"
+def unused_method
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(dead.contains(&"unused_method".to_string()));
+}
+
+#[test]
+fn test_ruby_referenced_method_is_not_dead() {
+    let source = r#"
+def used_method
+end
+
+def caller
+  used_method
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"used_method".to_string()));
+    assert!(dead.contains(&"caller".to_string()));
+}
+
+#[test]
+fn test_ruby_send_symbol_counts_as_reference() {
+    let source = r#"
+def dispatched
+end
+
+def caller
+  obj.send :dispatched
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"dispatched".to_string()));
+}
+
+#[test]
+fn test_ruby_define_method_string_counts_as_reference() {
+    let source = r#"
+def fallback
+end
+
+define_method("fallback") do
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"fallback".to_string()));
+}
+
+#[test]
+fn test_ruby_attr_accessor_symbol_counts_as_reference() {
+    let source = r#"
+class Widget
+  attr_accessor :size
+
+  def size
+    @size
+  end
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"size".to_string()));
+}
+
+#[test]
+fn test_ruby_hash_key_symbol_counts_as_reference() {
+    let source = r#"
+def on_save
+end
+
+CALLBACKS = { on_save: true }
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"on_save".to_string()));
+}
+
+#[test]
+fn test_ruby_class_module_and_scoped_class_definitions() {
+    let source = r#"
+class UnusedClass
+end
+
+module UnusedModule
+end
+
+class Outer::UnusedScoped
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(dead.contains(&"UnusedClass".to_string()));
+    assert!(dead.contains(&"UnusedModule".to_string()));
+    assert!(dead.contains(&"UnusedScoped".to_string()));
+}
+
+#[test]
+fn test_ruby_constant_assignment_is_a_definition() {
+    let source = r#"
+UNUSED_CONST = 42
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(dead.contains(&"UNUSED_CONST".to_string()));
+}
+
+#[test]
+fn test_ruby_initialize_and_method_missing_are_ignored() {
+    let source = r#"
+class Widget
+  def initialize
+  end
+
+  def method_missing(name, *args)
+  end
+
+  def respond_to_missing?(name, include_private = false)
+    true
+  end
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(!dead.contains(&"initialize".to_string()));
+    assert!(!dead.contains(&"method_missing".to_string()));
+    assert!(!dead.contains(&"respond_to_missing?".to_string()));
+}
+
+#[test]
+fn test_ruby_send_helper_capture_is_not_a_reference() {
+    // The @_m helper capture for `send` must not record `send` itself as a
+    // reference: a method literally named `send_report` stays dead, and the
+    // query doesn't crash on dynamic-dispatch calls.
+    let source = r#"
+def unused_method
+end
+
+def caller
+  obj.send "something_else"
+end
+"#;
+    let dead = dead_names(source, "rb");
+    assert!(dead.contains(&"unused_method".to_string()));
+}
+
+#[test]
+fn test_ruby_test_file_detection() {
+    let lang = get_language_for_extension("rb").unwrap();
+    assert!(lang.is_test_file("foo_spec.rb"));
+    assert!(lang.is_test_file("spec/foo.rb"));
+    assert!(lang.is_test_file("test/foo.rb"));
+    assert!(lang.is_test_file("app/models/widget_test.rb"));
+    assert!(!lang.is_test_file("lib/foo.rb"));
+}
+
+// =============================================================================
+// PHP Tests
+// =============================================================================
+
+#[test]
+fn test_php_unreferenced_function_is_dead() {
+    let source = r#"<?php
+function unused_function() {}
+"#;
+    let dead = dead_names(source, "php");
+    assert!(dead.contains(&"unused_function".to_string()));
+}
+
+#[test]
+fn test_php_referenced_function_is_not_dead() {
+    let source = r#"<?php
+function used_function() {}
+
+function caller() {
+    used_function();
+}
+"#;
+    let dead = dead_names(source, "php");
+    assert!(!dead.contains(&"used_function".to_string()));
+    assert!(dead.contains(&"caller".to_string()));
+}
+
+#[test]
+fn test_php_type_declarations_are_definitions() {
+    let source = r#"<?php
+class UnusedClass {}
+interface UnusedInterface {}
+trait UnusedTrait {}
+enum UnusedEnum {
+    case UnusedCase;
+}
+"#;
+    let dead = dead_names(source, "php");
+    assert!(dead.contains(&"UnusedClass".to_string()));
+    assert!(dead.contains(&"UnusedInterface".to_string()));
+    assert!(dead.contains(&"UnusedTrait".to_string()));
+    assert!(dead.contains(&"UnusedEnum".to_string()));
+    assert!(dead.contains(&"UnusedCase".to_string()));
+}
+
+#[test]
+fn test_php_public_method_skipped_by_default() {
+    let source = r#"<?php
+class App {
+    public function publicApi() {}
+}
+"#;
+    let dead = dead_names(source, "php");
+    assert!(!dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_php_public_method_reported_with_include_public() {
+    let source = r#"<?php
+class App {
+    public function publicApi() {}
+}
+"#;
+    let dead = dead_names_public(source, "php");
+    assert!(dead.contains(&"publicApi".to_string()));
+}
+
+#[test]
+fn test_php_private_and_no_modifier_methods_are_reported() {
+    let source = r#"<?php
+class App {
+    private function privateHelper() {}
+    function bareHelper() {}
+}
+"#;
+    let dead = dead_names(source, "php");
+    assert!(dead.contains(&"privateHelper".to_string()));
+    assert!(dead.contains(&"bareHelper".to_string()));
+}
+
+#[test]
+fn test_php_magic_methods_are_ignored() {
+    let source = r#"<?php
+class App {
+    public function __construct() {}
+    public function __get($name) {}
+}
+"#;
+    let dead = dead_names_public(source, "php");
+    assert!(!dead.contains(&"__construct".to_string()));
+    assert!(!dead.contains(&"__get".to_string()));
+}
+
+#[test]
+fn test_php_unused_const_is_dead() {
+    let source = r#"<?php
+const UNUSED_CONST = 42;
+"#;
+    let dead = dead_names(source, "php");
+    assert!(dead.contains(&"UNUSED_CONST".to_string()));
+}
+
+#[test]
+fn test_php_type_hint_counts_as_reference() {
+    let source = r#"<?php
+class Config {}
+
+function load(Config $config) {}
+"#;
+    let dead = dead_names(source, "php");
+    assert!(!dead.contains(&"Config".to_string()));
+}
+
+#[test]
+fn test_php_test_file_detection() {
+    let lang = get_language_for_extension("php").unwrap();
+    assert!(lang.is_test_file("src/FooTest.php"));
+    assert!(lang.is_test_file("tests/Foo.php"));
+    assert!(lang.is_test_file("app/tests/Foo.php"));
+    assert!(!lang.is_test_file("src/Foo.php"));
+}
+
+// =============================================================================
+// Bash Tests
+// =============================================================================
+
+#[test]
+fn test_bash_unreferenced_function_is_dead() {
+    let source = r#"
+unused_function() {
+  echo "never called"
+}
+"#;
+    let dead = dead_names(source, "sh");
+    assert!(dead.contains(&"unused_function".to_string()));
+}
+
+#[test]
+fn test_bash_referenced_function_is_not_dead() {
+    let source = r#"
+used_function() {
+  echo "called"
+}
+
+used_function
+"#;
+    let dead = dead_names(source, "sh");
+    assert!(!dead.contains(&"used_function".to_string()));
+}
+
+#[test]
+fn test_bash_function_passed_as_argument_is_not_dead() {
+    let source = r#"
+cleanup() {
+  rm -f /tmp/lockfile
+}
+
+trap cleanup EXIT
+"#;
+    let dead = dead_names(source, "bash");
+    assert!(!dead.contains(&"cleanup".to_string()));
+}
+
+#[test]
+fn test_bash_main_is_ignored() {
+    let source = r#"
+main() {
+  echo "entry point"
+}
+"#;
+    let dead = dead_names(source, "sh");
+    assert!(!dead.contains(&"main".to_string()));
+}
